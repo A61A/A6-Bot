@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A6 Store · Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#07080f; --panel:#0c0e1a; --panel-2:#10121f;
+    --ink:#eef0fb; --ink-dim:#9aa0c0; --ink-faint:#5d6284;
+    --indigo:#0B048F; --blue:#4f6df0; --accent:#a5a3ff; --success:#3ba776; --danger:#f87171;
+    --line:#1c2036;
+    --font-display:'Space Grotesk',sans-serif; --font-body:'Inter',sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--void);color:var(--ink);font-family:var(--font-body);-webkit-font-smoothing:antialiased;}
+  a{color:inherit;text-decoration:none;}
+  header{border-bottom:1px solid var(--line);background:rgba(7,8,15,.9);position:sticky;top:0;z-index:30;}
+  .headrow{max-width:1200px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:20px;}
+  .brand{display:flex;align-items:center;gap:9px;}
+  .brand span{font-family:var(--font-display);font-weight:700;font-size:16px;}
+  .brand .crumb{color:var(--ink-faint);font-weight:500;font-size:13px;}
+  .headright{margin-left:auto;font-size:13.5px;color:var(--ink-dim);font-weight:500;display:flex;gap:16px;}
+  .headright a:hover{color:var(--ink);}
+
+  .layout{max-width:1200px;margin:0 auto;padding:26px 24px 90px;display:grid;grid-template-columns:210px 1fr;gap:26px;}
+  @media(max-width:820px){
+    .layout{grid-template-columns:1fr;padding:18px 16px 90px;}
+    .headrow{padding:12px 16px;}
+    nav.tabs{flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:4px;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+    nav.tabs::-webkit-scrollbar{display:none;}
+    nav.tabs button{white-space:nowrap;padding:9px 13px;}
+    nav.tabs button .ic{display:none;}
+    .card{padding:16px;}
+    .inline{overflow-x:auto;scrollbar-width:none;}
+    .inline::-webkit-scrollbar{display:none;}
+  }
+
+  nav.tabs{display:flex;flex-direction:column;gap:3px;}
+  nav.tabs button{display:flex;align-items:center;gap:10px;text-align:left;background:none;border:0;color:var(--ink-dim);font-family:var(--font-body);font-size:13.5px;font-weight:500;padding:11px 14px;border-radius:9px;cursor:pointer;}
+  nav.tabs button .ic{width:22px;font-size:13px;color:var(--ink-faint);opacity:.8;}
+  nav.tabs button:hover{color:var(--ink);background:var(--panel);}
+  nav.tabs button.on{color:#fff;background:linear-gradient(120deg,var(--indigo),var(--blue));}
+  nav.tabs button.on .ic{color:#fff;opacity:1;}
+
+  .panel h1{font-family:var(--font-display);font-size:21px;font-weight:600;margin:0 0 4px;}
+  .panel .sub{color:var(--ink-faint);font-size:13px;margin-bottom:22px;}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px;}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;}
+  .stat .n{font-family:var(--font-display);font-size:24px;font-weight:700;}
+  .stat .l{font-size:11.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-top:3px;}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px;}
+  .card h2{font-family:var(--font-display);font-size:14px;font-weight:600;margin:0 0 14px;display:flex;align-items:center;gap:8px;}
+  .card h2 .hint{font-weight:400;color:var(--ink-faint);font-size:12px;}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:560px){ .grid2{grid-template-columns:1fr;} }
+  .field{margin-bottom:11px;}
+  .field label{display:block;font-size:12px;color:var(--ink-faint);margin-bottom:5px;font-weight:500;}
+  .field input,.field select,.field textarea{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;color:var(--ink);font-size:13px;font-family:var(--font-body);}
+  .field textarea{min-height:60px;resize:vertical;}
+  .check{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-dim);margin:3px 0;}
+  .check input{accent-color:var(--blue);width:15px;height:15px;}
+
+  button.go{background:linear-gradient(120deg,var(--indigo),var(--blue));color:#fff;border:0;border-radius:9px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-body);}
+  button.go.sm{padding:7px 13px;font-size:12.5px;}
+  button.ghost{background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);border-radius:9px;padding:8px 13px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--font-body);}
+  button.ghost.sm{padding:6px 11px;font-size:12px;}
+  button.danger{background:rgba(248,113,113,.12);border:1px solid var(--danger);color:var(--danger);}
+  button:disabled{opacity:.45;cursor:not-allowed;}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  .msg{font-size:12.5px;margin-top:10px;min-height:18px;}
+  .msg.ok{color:var(--success);} .msg.err{color:var(--danger);}
+
+  .pill{font-size:10px;font-weight:700;letter-spacing:.05em;padding:3px 8px;border-radius:999px;background:rgba(165,163,255,.14);color:var(--accent);}
+  .pill.warn{background:rgba(248,113,113,.12);color:var(--danger);}
+  .pill.ok{background:rgba(59,167,118,.14);color:var(--success);}
+
+  .prow{display:flex;gap:14px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 16px;}
+  .prow .img{width:44px;height:44px;border-radius:10px;object-fit:cover;flex:0 0 auto;background:linear-gradient(135deg,var(--indigo),var(--blue));}
+  .prow .grow{flex:1;min-width:0;}
+  .prow .t{font-size:14px;font-weight:600;}
+  .prow .d{font-size:12px;color:var(--ink-faint);margin-top:2px;}
+  .plist{display:flex;flex-direction:column;gap:10px;}
+
+  table.data{width:100%;border-collapse:collapse;font-size:12.5px;}
+  table.data th{text-align:left;color:var(--ink-faint);font-weight:500;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  table.data td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  table.data tr:last-child td{border-bottom:0;}
+
+  .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .inline input{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;color:var(--ink);font-size:12.5px;}
+  .bread{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--accent);cursor:pointer;font-weight:600;margin-bottom:16px;}
+  .imgopt{display:flex;gap:10px;align-items:center;}
+  .thumb{width:34px;height:34px;border-radius:8px;object-fit:cover;background:linear-gradient(135deg,var(--indigo),var(--blue));}
+  .drop{border:1.5px dashed var(--line);border-radius:12px;overflow:hidden;cursor:pointer;background:var(--panel-2);}
+  .drop:hover{border-color:var(--blue);background:var(--panel);}
+  .drop input{display:none;}
+  .drop-in{display:flex;gap:14px;align-items:center;padding:12px 14px;min-height:64px;}
+  .drop-in .preview{width:64px;height:64px;border-radius:10px;object-fit:cover;background:linear-gradient(135deg,var(--indigo),var(--blue));display:block;}
+  .drop-in .placeholder{width:64px;height:64px;border-radius:10px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:var(--panel);color:var(--ink-faint);font-size:11px;text-align:center;line-height:1.3;}
+  .drop-txt strong{display:block;font-size:13px;color:var(--ink);}
+  .drop-txt span{display:block;font-size:11.5px;color:var(--ink-faint);margin-top:2px;line-height:1.4;}
+  .drop-txt em{display:block;font-style:normal;font-size:11.5px;color:var(--accent);margin-top:3px;}
+  .empty{color:var(--ink-faint);font-size:12.5px;padding:12px 2px;}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel-2);border:1px solid var(--success);color:var(--ink);padding:10px 16px;border-radius:10px;font-size:13px;z-index:80;opacity:0;pointer-events:none;transition:opacity .2s;}
+  .toast.show{opacity:1;}
+  .it-overlay{position:fixed;inset:0;background:rgba(7,8,15,.72);display:flex;align-items:center;justify-content:center;z-index:90;backdrop-filter:blur(3px);padding:18px;}
+  .it-box{width:min(560px,94vw);max-height:92vh;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="headrow">
+    <a class="brand" href="/"><span>a6</span><span class="crumb">/ admin</span></a>
+    <div class="headright"><a href="/">Store</a><span id="who">-</span></div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="tabs">
+    <button data-tab="dash" class="on"><span class="ic">M</span>Overview</button>
+    <button data-tab="products"><span class="ic">P</span>Products</button>
+    <button data-tab="customers"><span class="ic">C</span>Customers</button>
+    <button data-tab="codes"><span class="ic">D</span>Discount codes</button>
+    <button data-tab="links"><span class="ic">L</span>Links</button>
+    <button data-tab="payments"><span class="ic">P</span>Payments</button>
+    <button data-tab="goals"><span class="ic">G</span>Goal wall</button>
+    <button data-tab="cats"><span class="ic">T</span>Categories</button>
+  </nav>
+  <section class="panel" id="panel"></section>
+</div>
+
+<div class="it-overlay" id="vsModal" style="display:none">
+  <div class="it-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px">
+      <h2 style="font-family:var(--font-display);font-size:18px;font-weight:600;margin:0">Price &amp; stock</h2>
+      <button onclick="closeVariantStock()" style="background:none;border:0;color:var(--ink-faint);font-size:20px;cursor:pointer;line-height:1">&times;</button>
+    </div>
+    <div class="d" id="vsTarget" style="font-size:12.5px;color:var(--ink-faint);margin-bottom:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
+    <div id="vsBody"></div>
+  </div>
+</div>
+
+<div class="it-overlay" id="itModal" style="display:none;z-index:96">
+  <div class="it-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:2px">
+      <h2 style="font-family:var(--font-display);font-size:18px;font-weight:600;margin:0">Import items</h2>
+      <button onclick="itClose()" style="background:none;border:0;color:var(--ink-faint);font-size:20px;cursor:pointer;line-height:1">&times;</button>
+    </div>
+    <div class="d" id="itModalTarget" style="font-size:12.5px;color:var(--ink-faint);margin-bottom:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"></div>
+    <textarea id="itBulk" rows="10" oninput="itCount()" style="width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:10px 12px;color:var(--ink);font-size:13px;font-family:monospace;min-height:180px;resize:vertical;box-sizing:border-box" placeholder="user1@mail.com&#10;pass1,&#10;user2@mail.com&#10;pass2,"></textarea>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
+      <button class="go" onclick="itImport()">Import</button>
+      <button class="ghost" onclick="itClose()">Cancel</button>
+      <span style="font-size:12.5px" class="msg" id="itCount"></span>
+    </div>
+    <div class="msg" id="itMsg"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $=(id)=>document.getElementById(id);
+let adminName = "";
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2400); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function usd(n){ return "$" + Number(n||0).toFixed(2); }
+const money=(n)=>usd(n);
+function num(v){ const n=Number(v); return Number.isFinite(n)?n:0; }
+
+const SESSION_KEY = "a7session";
+function getSession(){ return localStorage.getItem(SESSION_KEY) || ""; }
+function authHeaders(extra={}){ const s=getSession(); return {...extra, ...(s?{"X-Session":s}:{}) }; }
+
+async function api(path, method="GET", body){
+  const opt = { method, headers: authHeaders() };
+  if(body !== undefined){ opt.headers["Content-Type"]="application/json"; opt.body = JSON.stringify(body); }
+  const res = await fetch(path, opt);
+  let data = {};
+  try { data = await res.json(); } catch {}
+  if(!res.ok && !data.ok){ throw new Error(data.message || "Request failed"); }
+  return data;
+}
+
+document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
+function switchTab(tab){
+  document.querySelectorAll("nav.tabs button").forEach(b=>b.classList.toggle("on", b.dataset.tab===tab));
+  if(tab==="dash") viewDash();
+  else if(tab==="products") viewProducts();
+  else if(tab==="customers") viewCustomers();
+  else if(tab==="codes") viewCodes();
+  else if(tab==="links") viewLinks();
+  else if(tab==="payments") viewPayments();
+  else if(tab==="goals") viewGoals();
+  else if(tab==="cats") viewCats();
+}
+
+async function boot(){
+  try {
+    const r = await fetch("/api/me",{credentials:"include"}).then(x=>x.json());
+    if(!r.authed || !r.admin){ location.href = "/"; return; }
+    adminName = r.username;
+    $("who").textContent = r.username + " (admin)";
+  } catch { location.href = "/"; }
+  viewDash();
+}
+boot();
+
+/* ------------------------------ Overview ---------------------------------- */
+async function viewDash(){
+  const p=$("panel");
+  p.innerHTML = `<h1>Overview</h1><div class="sub">Live store analytics and quick shortcuts.</div>
+    <div class="stats" id="dashStats"><div class="stat"><div class="n">-</div><div class="l">Total sales</div></div><div class="stat"><div class="n">-</div><div class="l">Products</div></div><div class="stat"><div class="n">-</div><div class="l">Customers</div></div><div class="stat"><div class="n">-</div><div class="l">Codes</div></div><div class="stat"><div class="n">-</div><div class="l">Links</div></div><div class="stat"><div class="n">-</div><div class="l">Page views</div></div><div class="stat"><div class="n">-</div><div class="l">Visitors (24h)</div></div></div>
+    <div class="card"><h2>Shortcuts</h2>
+      <div class="actions">
+        <button class="go sm" onclick="switchTab('products');setTimeout(()=>{ if(window.__newProduct) window.__newProduct(); },50)">Add a product</button>
+        <button class="ghost sm" onclick="switchTab('customers')">Give balance</button>
+        <button class="ghost sm" onclick="switchTab('codes')">New discount code</button>
+        <button class="ghost sm" onclick="switchTab('goals')">Edit goal wall</button>
+      </div>
+    </div>
+    <div class="card"><h2>Live Analytics</h2>
+      <div id="analyticsOverview" class="grid2" style="margin-top:12px"></div>
+      <div class="actions" style="margin-top:12px; gap: 8px;">
+        <button class="go sm" id="refreshAnalytics">Refresh Now</button>
+        <button class="danger sm" id="clearAnalytics">Clear All Analytics</button>
+        <button class="danger sm" id="clearPurchases" style="background:rgba(248,113,113,.2);border-color:var(--danger);">Clear All Purchases</button>
+      </div>
+      <div class="msg" id="analyticsMsg" style="margin-top:8px"></div>
+    </div>
+    <div class="card"><h2>Activity</h2><div class="sub" style="margin:0">Recent purchases are tracked on the storefront's reward wall. Open the store to preview the live catalog.</div>
+      <div class="actions" style="margin-top:12px"><a href="/" class="ghost sm" style="display:inline-block">Open storefront -></a><a href="/account" class="ghost sm" style="display:inline-block">Account page -></a></div>
+    </div>`;
+  try {
+    const d = await api("/api/admin/summary");
+    const st = $("dashStats");
+    if(st){ st.innerHTML = `
+      <div class="stat"><div class="n">${usd(d.revenue)}</div><div class="l">Total sales</div></div>
+      <div class="stat"><div class="n">${d.products}</div><div class="l">Products</div></div>
+      <div class="stat"><div class="n">${d.users}</div><div class="l">Customers</div></div>
+      <div class="stat"><div class="n">${d.codes}</div><div class="l">Codes</div></div>
+      <div class="stat"><div class="n">${d.links}</div><div class="l">Links</div></div>
+      <div class="stat"><div class="n">${(await loadAnalytics()).total_page_views || 0}</div><div class="l">Page views</div></div>
+      <div class="stat"><div class="n">${(await loadAnalytics()).total_unique_visitors || 0}</div><div class="l">Visitors</div></div>`; }
+  } catch {}
+  
+  // Load detailed analytics
+  await loadAnalyticsDetails();
+  
+  // Refresh button
+  $("refreshAnalytics")?.addEventListener("click", async () => {
+    const msg = $("analyticsMsg");
+    msg.className = "msg"; msg.textContent = "Refreshing...";
+    try {
+      await api("/api/analytics/refresh", "POST");
+      await loadAnalyticsDetails();
+      msg.className = "msg ok"; msg.textContent = "Analytics refreshed";
+      viewDash(); // refresh dashboard stats
+    } catch (e) {
+      msg.className = "msg err"; msg.textContent = "Failed to refresh";
+    }
+  });
+
+  // Clear Analytics button
+  $("clearAnalytics")?.addEventListener("click", async () => {
+    if (!confirm("This will permanently delete ALL analytics data (page views, visits, sales history). Are you sure?")) return;
+    const msg = $("analyticsMsg");
+    msg.className = "msg"; msg.textContent = "Clearing...";
+    try {
+      await api("/api/analytics/clear", "POST");
+      msg.className = "msg ok"; msg.textContent = "Analytics cleared";
+      await loadAnalyticsDetails();
+      viewDash();
+    } catch (e) {
+      msg.className = "msg err"; msg.textContent = "Failed to clear";
+    }
+  });
+
+  // Clear Purchases button (DESTRUCTIVE)
+  $("clearPurchases")?.addEventListener("click", async () => {
+    if (!confirm("⚠️ THIS IS IRREVERSIBLE! This will permanently delete ALL purchase records, delivered keys, and revenue data. Are you absolutely sure?")) return;
+    if (!confirm("Last chance! This deletes ALL customer orders and delivered keys. Type 'DELETE' to confirm.")) return;
+    const msg = $("analyticsMsg");
+    msg.className = "msg"; msg.textContent = "Clearing purchases...";
+    try {
+      await api("/api/analytics/clear-purchases", "POST");
+      msg.className = "msg ok"; msg.textContent = "All purchases cleared";
+      await loadAnalyticsDetails();
+      viewDash();
+    } catch (e) {
+      msg.className = "msg err"; msg.textContent = "Failed to clear purchases";
+    }
+  });
+
+  window.__newProduct = ()=>viewProducts(true);
+}
+
+async function loadAnalytics() {
+  try {
+    const d = await api("/api/analytics/overview");
+    return d.overview;
+  } catch {
+    return {};
+  }
+}
+
+async function loadAnalyticsDetails() {
+  try {
+    const d = await api("/api/analytics/overview");
+    const o = d.overview;
+    const today = o.today || {};
+    const container = $("analyticsOverview");
+    if (container) {
+      container.innerHTML = `
+        <div class="card"><h2>Today</h2>
+          <div class="stats">
+            <div class="stat"><div class="n">${today.page_views || 0}</div><div class="l">Page views</div></div>
+            <div class="stat"><div class="n">${today.unique_visitors || 0}</div><div class="l">Unique visitors</div></div>
+            <div class="stat"><div class="n">${usd(today.sales_usd || 0)}</div><div class="l">Sales</div></div>
+            <div class="stat"><div class="n">${today.orders || 0}</div><div class="l">Orders</div></div>
+            <div class="stat"><div class="n">${today.products_sold || 0}</div><div class="l">Products sold</div></div>
+            <div class="stat"><div class="n">${today.unique_customers || 0}</div><div class="l">Customers</div></div>
+          </div>
+        </div>
+        <div class="card"><h2>All Time</h2>
+          <div class="stats">
+            <div class="stat"><div class="n">${o.total_page_views || 0}</div><div class="l">Total page views</div></div>
+            <div class="stat"><div class="n">${o.total_unique_visitors || 0}</div><div class="l">Total visitors</div></div>
+            <div class="stat"><div class="n">${usd(o.total_sales_usd || 0)}</div><div class="l">Total sales</div></div>
+            <div class="stat"><div class="n">${o.total_orders || 0}</div><div class="l">Total orders</div></div>
+            <div class="stat"><div class="n">${o.products_sold || 0}</div><div class="l">Products sold</div></div>
+            <div class="stat"><div class="n">${o.unique_customers || 0}</div><div class="l">Unique buyers</div></div>
+            <div class="stat"><div class="n">${o.total_registered_users || 0}</div><div class="l">Registered users</div></div>
+          </div>
+        </div>
+        <div class="card"><h2>Last 7 Days</h2>
+          <table class="data" style="margin-top:12px">
+            <thead><tr><th>Date</th><th>Views</th><th>Visitors</th><th>Sales</th><th>Orders</th><th>Products</th><th>Buyers</th></tr></thead>
+            <tbody>
+              ${(o.recent_7_days || []).map(d => `
+                <tr><td>${d.date}</td><td>${d.page_views || 0}</td><td>${d.unique_visitors || 0}</td><td>${usd(d.total_sales_usd || 0)}</td><td>${d.total_orders || 0}</td><td>${d.products_sold || 0}</td><td>${d.unique_customers || 0}</td></tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>`;
+    }
+  } catch (e) {
+    console.error("Failed to load analytics:", e);
+  }
+}
+
+/* ------------------------------ Products ---------------------------------- */
+let PROD_FILTER = "";
+let PROD_FILTER_PREV = "";
+let PROD_PAGE = 1, PROD_PER = 6; // pagination for the product list
+let PROD_EDIT = null; // product key being edited, or "__new__"
+
+async function viewProducts(openNew){
+  if(openNew) { PROD_EDIT = "__new__"; renderProductEditor(); return; }
+  PROD_EDIT = null;
+  const p=$("panel");
+  p.innerHTML = `<h1>Products</h1><div class="sub">Everything you sell. Click Edit to change pricing, stock, images or availability.</div>
+    <div class="actions" style="margin-bottom:16px">
+      <button class="go sm" onclick="viewProducts(true)">+ New product</button>
+      <input id="prodSearch" placeholder="Search by name or key..." style="background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:8px 12px;color:var(--ink);font-size:13px;width:230px" oninput="renderProdList()">
+    </div>
+    <div class="plist" id="prodList"><div class="empty">Loading...</div></div>
+    <div class="pager" id="prodPager"></div>`;
+  try {
+    const d = await api("/api/admin/products");
+    window.__allProds = d.products || [];
+    renderProdList();
+  } catch (err) {
+    const el = $("prodList");
+    el.innerHTML = `<div class="empty" style="color:var(--danger)">Couldn't load products: ${esc(err?.message || "Request failed")}</div>
+      <div class="actions" style="justify-content:center"><button class="go sm" onclick="viewProducts()">Retry</button></div>`;
+  }
+}
+function renderProdList(){
+  const q = (PROD_FILTER = ($("prodSearch")?.value||"").toLowerCase());
+  if(q !== PROD_FILTER_PREV){ PROD_PAGE = 1; PROD_FILTER_PREV = q; } // new search -> first page
+  const list = (window.__allProds||[]).filter(p=>!q||(p.label&&p.label.toLowerCase().includes(q))||(p.key&&p.key.includes(q)));
+  const pages = Math.max(1, Math.ceil(list.length / PROD_PER));
+  if(PROD_PAGE > pages) PROD_PAGE = pages;
+  const pageList = list.slice((PROD_PAGE-1)*PROD_PER, PROD_PAGE*PROD_PER); // current page's products
+  const el = $("prodList");
+  el.innerHTML = pageList.map(p=>{
+    const versions = Array.isArray(p.versions)?p.versions:[];
+    const prices = versions.map(v=>Number(v.price)).filter(x=>x>0);
+    const low = prices.length?Math.min(...prices):null;
+    const stockTotal = versions.filter(v=>Number(v.stock)!==-1).reduce((a,v)=>a+(Number(v.stock)||0),0);
+    const out = versions.filter(v=>Number(v.stock)!==-1&&Number(v.stock)<=0).length;
+    return `<div class="prow">
+      ${p.image?`<img class="img" src="${esc(p.image)}">`:`<div class="img"></div>`}
+      <div class="grow">
+        <div class="t">${esc(p.label)} <span class="d">(${esc(p.key)})</span>
+          ${p.hidden?'<span class="pill warn">hidden</span>':''}
+          ${p.on_hold?'<span class="pill warn">on hold</span>':''}
+          ${p.coming_soon?'<span class="pill">soon</span>':''}
+          ${p.goal_usd>0?'<span class="pill">goal $'+p.goal_usd+'</span>':''}
+          ${p.hot?'<span class="pill" style="background:rgba(165,163,255,.14);color:var(--accent)">hot</span>':''}
+        </div>
+        <div class="d">${p.versions.length} plans · from ${low?usd(low):"--"}${stockTotal>0?(" · "+stockTotal+" in stock"):""}${out?" · <span class='pill warn'>"+out+" sold out</span>":""}</div>
+      </div>
+        <div class="actions">
+          <label class="check" style="margin-right:8px;font-size:11px">
+            <input type="checkbox" ${p.hot?'checked':''} onchange="toggleHot('${esc(p.key)}',this.checked)"> Hot
+          </label>
+          <button class="go sm" onclick="openProductEditor('${esc(p.key)}')">Edit</button>
+          <button class="ghost sm danger" onclick="delProduct('${esc(p.key)}')">Delete</button>
+      </div>
+    </div>`;
+  }).join("") || `<div class="empty">No products match.</div>`;
+  const pg=$("prodPager");
+  pg.innerHTML = pages<=1 ? "" : `
+    <button class="go sm" ${PROD_PAGE<=1?'disabled':''} onclick="prodPage(${PROD_PAGE-1})">Prev</button>
+    ${Array.from({length:pages},(_,i)=>`<button class="${i+1===PROD_PAGE?'go sm':'ghost sm'}" onclick="prodPage(${i+1})">${i+1}</button>`).join("")}
+    <button class="go sm" ${PROD_PAGE>=pages?'disabled':''} onclick="prodPage(${PROD_PAGE+1})">Next</button>`;
+}
+function prodPage(n){ if(n<1||n>Math.max(1,Math.ceil((window.__allProds||[]).length/PROD_PER))) return; PROD_PAGE=n; renderProdList(); }
+async function openProductEditor(key){ PROD_EDIT=key; await renderProductEditor(); }
+async function delProduct(key){
+  if(!confirm("Delete "+key+" and all its plans?")) return;
+  await api("/api/admin/products?key="+encodeURIComponent(key),"DELETE");
+  toast("Deleted "+key);
+  viewProducts();
+}
+async function toggleHot(key,hot){
+  await api("/api/admin/toggle-hot","POST",{key,hot});
+  toast(hot?"Added to Hot products":"Removed from Hot products");
+  viewProducts();
+}
+async function sendStockUpdate(key){
+  const d = await api("/api/admin/send-stock-embed","POST",{key});
+  toast(d.ok?("Posted stock update for "+key+" ("+d.variants+" plans)"):(d.message||"Failed to post"));
+}
+async function renderProductEditor(){
+  const isNew = PROD_EDIT==="__new__";
+  const existing = isNew?null:(window.__allProds||[]).find(p=>p.key===PROD_EDIT);
+  const vis = existing ? (existing.coming_soon?"soon":existing.on_hold?"hold":existing.hidden?"hidden":"public") : "public";
+  const p=$("panel");
+  p.innerHTML = `<span class="bread" onclick="viewProducts()">&lt;- Back to products</span>
+    <h1>${isNew?"New product":"Edit "+(existing?esc(existing.label):"")}</h1>
+    <div class="sub">${isNew?"New products get 8 starter plans automatically - price them and toggle visibility.":"Changes save per section - you won't lose the rest."}</div>
+
+    <div class="card"><h2>Basics</h2>
+      <div class="grid2">
+        <div class="field"><label>Key (short id, auto lowercased)</label><input id="edKey" value="${isNew?"":esc(existing.key)}" ${isNew?"":"disabled"} placeholder="ex: expressvpn"></div>
+        <div class="field"><label>Name</label><input id="edLabel" value="${isNew?"":esc(existing.label)}" placeholder="ex: ExpressVPN"></div>
+      </div>
+      <div class="field"><label>Description</label><textarea id="edDesc" style="min-height:120px;resize:vertical;font-family:inherit;font-size:13px;line-height:1.6;white-space:pre-wrap">${esc(existing?existing.desc||"":"")}</textarea><div class="d" style="font-size:11px;color:var(--ink-faint);margin-top:4px">Line breaks are preserved. You can use basic formatting.</div></div>
+      <div class="field"><label>Logo</label>
+        <label class="drop" for="edFile" onclick="event.stopPropagation()">
+          <input type="file" id="edFile" accept="image/*">
+          <div class="drop-in" id="edLogoPreview">
+            <div class="placeholder" id="edLogoPh">no logo</div>
+            <div class="drop-txt">
+              <strong>Tap to choose an image</strong>
+              <span>Opens your file explorer (or photo library on mobile)</span>
+              <em>GIF / PNG / JPG from your device</em>
+            </div>
+          </div>
+        </label>
+        <div class="inline" style="margin-top:8px">
+          <button class="ghost sm" id="edLogoRemove">Clear</button>
+          <span class="d" style="font-size:12px;color:var(--ink-faint)">or paste a URL:</span>
+          <input id="edImage" value="${esc(existing?existing.image||"":"")}" placeholder="https://..." style="flex:1">
+        </div>
+      </div>
+      <div class="actions"><button class="go sm" onclick="saveProductBasics()">Save basics</button><span class="msg" id="edMsgBasics" style="margin-top:0"></span></div>
+    </div>
+
+    <div class="card"><h2>Availability</h2>
+      <div class="grid2">
+        <div class="field"><label>Visibility</label>
+          <select id="edVis">
+            <option value="public">Public - listed and buyable</option>
+            <option value="soon">Coming soon - visible, cant buy yet</option>
+            <option value="hold">On hold - listed, purchases disabled</option>
+            <option value="hidden">Hidden - not shown on the store</option>
+          </select>
+          <div class="d" style="font-size:11.5px;color:var(--ink-faint);margin-top:5px">On hold keeps the listing live while you restock or pause.</div>
+        </div>
+        <div class="field"><label>&nbsp;</label>
+          <label class="check" style="margin-bottom:2px"><input type="checkbox" id="edOnce" ${existing&&existing.once?"checked":""}> One purchase per account</label>
+          <div class="d" style="font-size:11.5px;color:var(--ink-faint)">Blocks the same account buying this product twice.</div>
+        </div>
+      </div>
+      <div class="field" style="max-width:280px"><label>Goal lock - only buyable after $X in total store sales (0 = always open)</label><input id="edGoal" type="number" min="0" step="1" value="${existing?Number(existing.goal_usd||0):0}"></div>
+      <div class="actions"><button class="go sm" onclick="saveProductStatus()">Save availability</button><span class="msg" id="edMsgStatus" style="margin-top:0"></span></div>
+    </div>
+
+    <div class="card"><h2>Variants (plans / services) <span class="hint">name &amp; visibility here - price and stock live on the Items tab</span></h2>
+      ${isNew?`<div class="empty">Products created from this editor get 8 starter plans automatically.</div>`:`
+      <div style="overflow-x:auto">
+      <table class="data"><thead><tr>
+        <th>Name</th><th>Show</th><th>Price</th><th>Stock</th><th></th>
+      </tr></thead>
+      <tbody>${(existing?existing.versions:[]).map(v=>`
+        <tr>
+          <td><input id="vl_${esc(v.value)}" value="${esc(v.label)}" style="width:170px"></td>
+          <td><label class="check" style="gap:4px;font-size:11px;white-space:nowrap"><input type="checkbox" id="vv_${esc(v.value)}" ${v.visible!==0?"checked":""} onchange="saveVersion('${esc(v.value)}','${esc(existing.key)}')"> show</label></td>
+          <td class="d" style="white-space:nowrap">${Number(v.price)>0?("$"+Number(v.price)):"<span style='color:var(--ink-faint)'>no price</span>"}</td>
+          <td class="d" style="white-space:nowrap">${v.stock===-1?"Unlimited":((v._avail||0)+" in stock")}</td>
+          <td><div class="actions" style="justify-content:flex-end;white-space:nowrap">
+            <button class="ghost sm" onclick="editVariantDetails('${esc(v.value)}','${esc(existing.key)}')" title="Hover popup text">Info</button>
+            <button class="ghost sm" onclick="openVariantStock('${esc(existing.key)}','${esc(v.value)}')" title="Set price, stock &amp; items">Price &amp; stock</button>
+            <button class="ghost sm" onclick="saveVersion('${esc(v.value)}','${esc(existing.key)}')">Save</button>
+            <button class="ghost sm danger" onclick="delVersion('${esc(v.value)}','${esc(existing.key)}')">Delete</button>
+          </div></td>
+        </tr>`).join("")}
+      </tbody></table>
+      </div>
+      <div class="d" style="font-size:11.5px;color:var(--ink-faint);margin:8px 0 0">"Unlimited" ignores stock. Otherwise the available quantity is the number of in-stock items you import on the Items tab.</div>
+      <div class="rule" style="border-top:1px solid var(--line);margin:14px 0"></div>
+      <h2 style="font-size:13px">Add a variant</h2>
+      <div class="inline" style="margin-top:6px">
+        <label class="d" style="font-size:12px;color:var(--ink-faint)">Label</label><input id="nvLabel" placeholder="ex: 1 Month" style="width:130px">
+        <label class="d" style="font-size:12px;color:var(--ink-faint)">Value</label><input id="nvValue" placeholder="ex: 1m" style="width:90px">
+        <label class="check" style="white-space:nowrap"><input type="checkbox" id="nvVisible" checked> show</label>
+        <button class="go sm" onclick="addVersion('${esc(existing.key)}')">Add</button>
+        <span class="msg" id="nvMsg" style="margin-top:0"></span>
+      </div>
+      <div class="d" style="font-size:11.5px;color:var(--ink-faint);margin-top:6px">New plans start unlimited and unpriced - set their price and stock on the Items tab.</div>`}
+      <span class="msg" id="edMsgVer" style="margin-top:12px"></span>
+    </div>
+    ${isNew?"":`<div class="card" style="border-color:transparent;padding:6px 0 0"><button class="ghost sm danger" onclick="delProduct('${esc(existing.key)}')">Delete this product</button></div>`}`;
+  function renderLogoPreview(src){
+    const box=$("edLogoPreview");
+    const ph=$("edLogoPh");
+    if(src && box){
+      box.innerHTML = `<img class="preview" src="${esc(src)}" alt="">`;
+    } else if(box){
+      box.innerHTML = `<div class="placeholder" id="edLogoPh">no logo</div>
+        <div class="drop-txt">
+          <strong>Tap to choose an image</strong>
+          <span>Opens your file explorer (or photo library on mobile)</span>
+          <em>GIF / PNG / JPG from your device</em>
+        </div>`;
+    }
+  }
+  function downscaleToDataUrl(file, maxDim, cb){
+    const r=new FileReader();
+    r.onload=()=>{
+      const img=new Image();
+      img.onload=()=>{
+        const scale=Math.min(1, maxDim/Math.max(img.width, img.height));
+        const w=Math.max(1, Math.round(img.width*scale)), h=Math.max(1, Math.round(img.height*scale));
+        const c=document.createElement("canvas"); c.width=w; c.height=h;
+        c.getContext("2d").drawImage(img,0,0,w,h);
+        const png = img.src.indexOf("image/png")===0 || img.src.indexOf("image/gif")===0;
+        cb(c.toDataURL(png?"image/png":"image/jpeg",0.85));
+      };
+      img.onerror=()=>cb(null);
+      img.src=r.result;
+    };
+    r.readAsDataURL(file);
+  }
+  $("edFile").addEventListener("change", ()=>{
+    const f=$("edFile").files[0];
+    if(!f) return;
+    if(!/^image\//.test(f.type)){ toast("That file is not an image."); $("edFile").value=""; return; }
+    if(f.size>5000000){ toast("Image too large (max 5MB)."); $("edFile").value=""; return; }
+    if(f.type==="image/gif" && f.size<400000){
+      const r=new FileReader();
+      r.onload=()=>{ $("edImage").value=r.result; renderLogoPreview(r.result); toast("Image attached - hit Save basics"); };
+      r.readAsDataURL(f);
+      return;
+    }
+    downscaleToDataUrl(f, 640, (dataUrl)=>{
+      if(!dataUrl){ toast("Could not read that image."); return; }
+      $("edImage").value = dataUrl;
+      renderLogoPreview(dataUrl);
+      toast("Image attached - hit Save basics");
+    });
+  });
+  $("edImage").addEventListener("input", ()=>renderLogoPreview($("edImage").value.trim()));
+  $("edLogoRemove").addEventListener("click", ()=>{ $("edImage").value=""; renderLogoPreview(""); toast("Logo cleared"); });
+  const visSel=$("edVis"); if(visSel) visSel.value = vis;
+  renderLogoPreview($("edImage").value.trim());
+}
+async function saveProductBasics(){
+  const m=$("edMsgBasics");
+  try{
+    const key = $("edKey").value.trim().toLowerCase().replace(/\s+/g,"-");
+    const d = await api("/api/admin/products","POST",{ key, label:$("edLabel").value, desc:$("edDesc").value, image:$("edImage").value||null });
+    if(m){ m.className="msg ok"; m.textContent="Saved."; }
+    toast("Saved "+d.product.label);
+    const pr=await api("/api/admin/products"); window.__allProds=pr.products;
+    PROD_EDIT=d.product.key;
+    await renderProductEditor();
+  }catch(e){
+    if(m){ m.className="msg err"; m.textContent=e.message||"Failed to save"; }
+    toast(e.message||"Failed to save");
+  }
+}
+async function saveProductStatus(){
+  const m=$("edMsgStatus");
+  try{
+    const key=PROD_EDIT;
+    const vis=$("edVis")?.value||"public";
+    await api("/api/admin/products","POST",{ key, label:$("edLabel").value, desc:$("edDesc").value, image:$("edImage").value||null, comingSoon:vis==="soon", once:$("edOnce").checked, hidden:vis==="hidden", onHold:vis==="hold", goalUsd:$("edGoal").value, sort:0 });
+    if(m){ m.className="msg ok"; m.textContent="Saved."; }
+    toast("Availability updated");
+    const pr=await api("/api/admin/products"); window.__allProds=pr.products;
+  }catch(e){
+    if(m){ m.className="msg err"; m.textContent=e.message||"Failed to save"; }
+    toast(e.message||"Failed to save");
+  }
+}
+async function saveVersion(value,key){
+  const m=$("edMsgVer");
+  if(m){ m.className="msg"; m.textContent="Saving "+value+"..."; }
+  try{
+    await api("/api/admin/versions","POST",{ productKey:key, value, label:$("vl_"+value).value, visible:document.getElementById("vv_"+value)?.checked?1:0 });
+    if(m){ m.className="msg ok"; m.textContent="Saved "+value+"."; }
+    toast("Variant saved");
+    const pr=await api("/api/admin/products"); window.__allProds=pr.products;
+  }catch(e){
+    if(m){ m.className="msg err"; m.textContent="Couldn't save: "+(e.message||"unknown error"); }
+  }
+}
+async function delVersion(value,key){
+  if(!confirm("Delete plan "+value+"?")) return;
+  try{
+    await api("/api/admin/versions?value="+encodeURIComponent(value),"DELETE");
+    toast("Plan deleted");
+    const pr=await api("/api/admin/products"); window.__allProds=pr.products;
+    await renderProductEditor();
+  }catch(e){ toast("Couldn't delete: "+(e.message||"unknown error")); }
+}
+async function addVersion(key){
+  const m=$("nvMsg");
+  if(m){ m.className="msg"; m.textContent="Adding..."; }
+  const label = String($("nvLabel").value||"").trim() || "Untitled plan";
+  const raw = String($("nvValue").value||"").trim().toLowerCase().replace(/[^a-z0-9_-]+/g,"-").replace(/^-+|-+$/g,"");
+  const value = raw || label.toLowerCase().replace(/[^a-z0-9_-]+/g,"-").replace(/^-+|-+$/g,"");
+  if(!value){ if(m){m.className="msg err"; m.textContent="Enter a value (ex: 1m) or a label we can build one from.";} return; }
+  try{
+    await api("/api/admin/versions","POST",{ productKey:key, value:key+":"+value, label, stock:-1, visible:$("nvVisible").checked?1:0 });
+    if(m){ m.className="msg ok"; m.textContent="Added "+key+":"+value+"."; }
+    // Clear form
+    $("nvLabel").value=""; $("nvValue").value=""; $("nvVisible").checked=true;
+    const pr=await api("/api/admin/products"); window.__allProds=pr.products;
+    await renderProductEditor();
+  }catch(e){
+    if(m){ m.className="msg err"; m.textContent="Couldn't add variant: "+(e.message||"unknown error"); }
+  }
+}
+
+/* ------------------------------ Customers --------------------------------- */
+async function viewCustomers(){
+  const p=$("panel");
+  p.innerHTML = `<h1>Customers</h1><div class="sub">Give balance or check accounts.</div>
+    <div class="card"><h2>Give balance</h2>
+      <div class="grid2">
+        <div class="field"><label>Username</label><input id="creditUser" placeholder="ex: a61a" list="userList"><datalist id="userList"></datalist></div>
+        <div class="field"><label>Amount $</label><input id="creditAmt" type="number" min="0.01" step="0.01" value="10"></div>
+      </div>
+      <div class="actions"><button class="go sm" onclick="giveCredit()">Give balance</button><span class="msg" id="creditMsg" style="margin-top:0"></span></div>
+    </div>
+    <div class="card"><h2>All accounts</h2>
+      <div class="plist" id="userListBox"><div class="empty">Loading...</div></div>
+    </div>`;
+  const d = await api("/api/admin/users");
+  const dl=$("userList");
+  if(dl) dl.innerHTML = d.users.map(u=>`<option value="${esc(u.username)}">`);
+  const box=$("userListBox");
+  box.innerHTML = d.users.map(u=>`<div class="prow">
+    <div class="avatar" style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--indigo),var(--blue));display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px">${esc((u.username||"?").slice(0,1).toUpperCase())}</div>
+    <div class="grow">
+      <div class="t">${esc(u.username)} ${u.discord_id?'<span class="pill ok">discord linked</span>':''}</div>
+      <div class="d">id ${u.id} · joined ${new Date(u.created_at).toLocaleDateString()}${u.discord_name?" · "+esc(u.discord_name):""}</div>
+    </div>
+    <div class="d" style="font-weight:600;color:var(--accent);font-size:14px">${usd(u.balance)}</div>
+    <button class="ghost sm" onclick="$('creditUser').value='${esc(u.username)}';$('creditAmt').focus()">Give</button>
+  </div>`).join("") || `<div class="empty">No customers yet.</div>`;
+}
+async function giveCredit(){
+  const m=$("creditMsg"); m.className="msg"; m.textContent="Processing...";
+  try{
+    const d=await api("/api/admin/credit","POST",{ username:$("creditUser").value, amount:$("creditAmt").value });
+    m.className="msg ok"; m.textContent="Given "+usd($("creditAmt").value)+" - new balance "+usd(d.balance);
+    const users=await api("/api/admin/users"); $("creditUser").value="";
+    const box=$("userListBox"); if(box){ box.innerHTML = users.users.slice(0,50).map(u=>`<div class="prow"><div class="avatar" style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--indigo),var(--blue));display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:13px">${esc((u.username||"?").slice(0,1).toUpperCase())}</div><div class="grow"><div class="t">${esc(u.username)}</div><div class="d">id ${u.id}</div></div><div class="d" style="font-weight:600;color:var(--accent);font-size:14px">${usd(u.balance)}</div><button class="ghost sm" onclick="$('creditUser').value='${esc(u.username)}';$('creditAmt').focus()">Give</button></div>`).join(""); }
+  }catch(e){ m.className="msg err"; m.textContent=e.message||"Failed."; }
+}
+
+/* ------------------------------ Codes -------------------------------------- */
+async function viewCodes(){
+  const p=$("panel");
+  p.innerHTML = `<h1>Discount codes</h1><div class="sub">Percent or fixed-off codes customers enter at checkout.</div>
+    <div class="card"><h2>New code</h2>
+      <div class="grid2">
+        <div class="field"><label>Code</label><input id="cCode" placeholder="ex: WELCOME10"></div>
+        <div class="field"><label>Kind</label><select id="cKind"><option value="percent">Percent off (%)</option><option value="fixed">Fixed off ($)</option></select></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Amount</label><input id="cAmt" type="number" step="0.01" value="10"></div>
+        <div class="field"><label>Max uses (-1 = unlimited)</label><input id="cUses" type="number" step="1" value="-1"></div>
+      </div>
+      <div class="actions"><button class="go sm" onclick="addCode()">Create code</button><span class="msg" id="codeMsg" style="margin-top:0"></span></div>
+    </div>
+    <div class="card"><h2>Active codes</h2>
+      <table class="data"><thead><tr><th>Code</th><th>Discount</th><th>Uses left</th><th>Created</th><th></th></tr></thead>
+      <tbody id="codeRows"></tbody></table>
+    </div>`;
+  const d = await api("/api/admin/codes");
+  $("codeRows").innerHTML = d.codes.map(c=>`<tr>
+    <td><span style="font-weight:700">${esc(c.code)}</span></td>
+    <td class="d">${c.kind==="percent"?c.amount+"% off":usd(c.amount)+" off"}</td>
+    <td class="d">${c.uses_left===-1?"unlimited":c.uses_left}</td>
+    <td class="d">${new Date(c.created_at).toLocaleDateString()}</td>
+    <td style="text-align:right"><button class="ghost sm danger" onclick="delCode('${esc(c.code)}')">Delete</button></td>
+  </tr>`).join("") || `<tr><td colspan="5" class="empty">No codes yet.</td></tr>`;
+}
+async function addCode(){
+  const m=$("codeMsg"); m.className="msg"; m.textContent="Creating...";
+  try{
+    await api("/api/admin/codes","POST",{ code:$("cCode").value, kind:$("cKind").value, amount:$("cAmt").value, uses:$("cUses").value });
+    toast("Code created");
+    viewCodes();
+  }catch(e){ m.className="msg err"; m.textContent=e.message||"Failed."; }
+}
+async function delCode(code){ if(!confirm("Delete code "+code+"?")) return; await api("/api/admin/codes?code="+encodeURIComponent(code),"DELETE"); toast("Deleted "+code); viewCodes(); }
+
+/* ------------------------------ Links -------------------------------------- */
+async function viewLinks(){
+  const p=$("panel");
+  p.innerHTML = `<h1>External links</h1><div class="sub">Sites shown on the storefront (Discord invite, TOS, partners...).</div>
+    <div class="card"><h2>Add a link</h2>
+      <div class="grid2">
+        <div class="field"><label>Title</label><input id="lTitle" placeholder="ex: Discord invite"></div>
+        <div class="field"><label>URL</label><input id="lUrl" placeholder="https://..."></div>
+      </div>
+      <div class="actions"><button class="go sm" onclick="addLink()">Add link</button><span class="msg" id="linkMsg" style="margin-top:0"></span></div>
+    </div>
+    <div class="card"><h2>Live links</h2>
+      <table class="data"><thead><tr><th>Title</th><th>URL</th><th></th></tr></thead>
+      <tbody id="linkRows"></tbody></table>
+    </div>`;
+  const d = await api("/api/admin/links");
+  $("linkRows").innerHTML = d.links.map(l=>`<tr>
+    <td>${esc(l.title)}</td>
+    <td class="d"><a href="${esc(l.url)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(l.url)}</a></td>
+    <td style="text-align:right"><button class="ghost sm danger" onclick="delLink(${l.id})">Delete</button></td>
+  </tr>`).join("") || `<tr><td colspan="3" class="empty">No links yet.</td></tr>`;
+}
+async function addLink(){ const m=$("linkMsg"); m.className="msg"; m.textContent="Adding..."; try{ await api("/api/admin/links","POST",{ title:$("lTitle").value, url:$("lUrl").value }); toast("Link added"); viewLinks(); }catch(e){ m.className="msg err"; m.textContent=e.message||"Failed."; } }
+async function delLink(id){ if(!confirm("Delete this link?")) return; await api("/api/admin/links?id="+id,"DELETE"); toast("Link deleted"); viewLinks(); }
+
+/* ------------------------------ Payments ----------------------------------- */
+async function viewPayments(){
+  const p=$("panel");
+  p.innerHTML = `<h1>Payments</h1><div class="sub">Processor, default coin, manual methods (PayPal/Zelle/Chime) and the manual orders queue.</div>
+
+    <div class="card"><h2>Processor settings</h2>
+      <div class="grid2">
+        <div class="field"><label>Processor</label><select id="payProvider"><option value="plisio">Plisio</option><option value="nowpayments">NowPayments</option><option value="sim">Simulation (dev)</option></select></div>
+        <div class="field"><label>Default coin</label><input id="payCur" placeholder="BTC, LTC, ETH, SOL..." value="BTC"></div>
+      </div>
+      <div class="actions"><button class="go sm" onclick="savePaySettings()">Apply changes</button><span class="msg" id="payMsg" style="margin-top:0"></span></div>
+      <div class="empty" id="payKeys" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card"><h2>PayPal (auto-capture via Orders v2)</h2>
+      <div class="grid2">
+        <div class="field"><label>Client ID</label><input id="ppClient" placeholder="sandbox or live client id" type="text"></div>
+        <div class="field"><label>Secret</label><input id="ppSecret" placeholder="sandbox or live secret" type="password"></div>
+      </div>
+      <div class="field"><label>Mode</label><select id="ppMode"><option value="sandbox">Sandbox (test)</option><option value="live">Live</option></select></div>
+      <div class="actions"><button class="go sm" onclick="savePayPalKeys()">Save PayPal keys</button><span class="msg" id="ppMsg" style="margin-top:0"></span></div>
+      <div class="empty" style="margin-top:8px">These enable the "PayPal" button at checkout (instant capture, no webhook needed).</div>
+    </div>
+
+    <div class="card"><h2>Manual payment details (shown to buyer at checkout)</h2>
+      <div class="grid2">
+        <div class="field"><label>PayPal details</label><textarea id="mdPaypal" placeholder="Your PayPal email or @handle, and any instructions for the buyer..."></textarea></div>
+        <div class="field"><label>Zelle details</label><textarea id="mdZelle" placeholder="Zelle email/phone and recipient name..."></textarea></div>
+        <div class="field"><label>Chime details</label><textarea id="mdChime" placeholder="Chime $username or email..."></textarea></div>
+      </div>
+      <div class="actions"><button class="go sm" onclick="saveManualDetails()">Save manual details</button><span class="msg" id="mdMsg" style="margin-top:0"></span></div>
+      <div class="empty" style="margin-top:8px">These appear as expandable options at checkout. Buyer sends money manually, then clicks "I've sent it" \u2014 you approve here.</div>
+    </div>
+
+    <div class="card"><h2>Manual orders queue</h2>
+      <div class="empty" style="margin-bottom:8px">Status: manual_waiting = awaiting your action · manual_paid = approved & delivered · manual_rejected = declined.</div>
+      <div class="plist" id="manualQueue"><div class="note">Loading...</div></div>
+    </div>`;
+  await loadPaySettings();
+  await loadManualDetails();
+  await loadPayPalKeys();
+  await loadManualQueue();
+}
+async function loadPaySettings(){
+  const d = await api("/api/admin/settings");
+  $("payProvider").value = d.provider;
+  $("payCur").value = d.paymentCurrency;
+  $("payKeys").textContent = "Keys: Plisio " + (d.keys.plisio?"ready":"MISSING") + " \u00b7 NowPayments " + (d.keys.nowpayments?"ready":"MISSING");
+}
+async function savePaySettings(){
+  const m=$("payMsg"); m.className="msg"; m.textContent="Applying...";
+  await api("/api/admin/settings","PATCH",{ paymentProvider:$("payProvider").value, paymentCurrency:$("payCur").value });
+  m.className="msg ok"; m.textContent="Saved - processor is now " + $("payProvider").value;
+  toast("Payment settings saved");
+}
+async function loadManualDetails(){
+  const d = await api("/api/admin/settings");
+  const pd = d.paymentDetails || {};
+  $("mdPaypal").value = pd.paypal || "";
+  $("mdZelle").value = pd.zelle || "";
+  $("mdChime").value = pd.chime || "";
+}
+async function saveManualDetails(){
+  const m=$("mdMsg"); m.className="msg"; m.textContent="Saving...";
+  await api("/api/admin/settings","PATCH",{ paymentDetails:{ paypal:$("mdPaypal").value, zelle:$("mdZelle").value, chime:$("mdChime").value }});
+  m.className="msg ok"; m.textContent="Saved.";
+  toast("Manual payment details saved");
+}
+async function loadPayPalKeys(){
+  const d = await api("/api/admin/settings");
+  $("ppClient").value = d.paypalClientId || "";
+  $("ppSecret").value = d.paypalSecret || "";
+  $("ppMode").value = d.paypalMode || "sandbox";
+}
+async function savePayPalKeys(){
+  const m=$("ppMsg"); m.className="msg"; m.textContent="Saving...";
+  await api("/api/admin/settings","PATCH",{ paypalClientId:$("ppClient").value, paypalSecret:$("ppSecret").value, paypalMode:$("ppMode").value });
+  m.className="msg ok"; m.textContent="Saved.";
+  toast("PayPal keys saved");
+}
+async function loadManualQueue(){
+  const d = await api("/api/admin/manual");
+  const el=$("manualQueue");
+  if(!d.ok || !d.orders || !d.orders.length){
+    el.innerHTML = `<div class="empty">No manual orders pending.</div>`;
+    return;
+  }
+  el.innerHTML = d.orders.map(o => {
+    const when = new Date(o.created_at).toLocaleString();
+    const items = Array.isArray(o.items) ? o.items : [];
+    const lines = items.map(i => `${i.productLabel||i.product} \u00b7 ${i.versionLabel||i.version} \u00d7${i.qty||1}`).join("<br>");
+    const detail = lines || (o.product_label ? `${o.product_label} \u00b7 ${o.version_label||o.version_value}` : "Order");
+    const badge = o.status==="manual_waiting"?'<span class="pill warn">waiting</span>':o.status==="manual_paid"?'<span class="pill ok">paid</span>':'<span class="pill">rejected</span>';
+    const actions = o.status==="manual_waiting"
+      ? `<button class="go sm" onclick="handleManual(${o.id},'approve')">Approve</button><button class="ghost sm danger" onclick="handleManual(${o.id},'reject')">Reject</button>`
+      : "";
+    return `<div class="prow">
+      <div class="grow">
+        <div class="t">${esc(detail)} <span class="d">(\${Number(o.usd_amount||0).toFixed(2)} \u00b7 ${esc(o.pay_currency||"manual")})</span> ${badge}</div>
+        <div class="d">User: ${esc(o.username||o.user_id)} \u00b7 ${esc(o.note||"no note")} \u00b7 ${when}</div>
+      </div>
+      <div class="actions">${actions}</div>
+    </div>`;
+  }).join("");
+}
+async function handleManual(id, action){
+  if(!confirm(action==="approve"?"Approve this order and deliver the items?":"Reject this order?")) return;
+  try{
+    const d = await api("/api/admin/manual?id="+id+"&action="+action,"POST");
+    toast(d.message);
+    loadManualQueue();
+  }catch(e){ toast(e.message||"Failed"); }
+}
+async function savePaySettings(){
+  const m=$("payMsg"); m.className="msg"; m.textContent="Applying...";
+  await api("/api/admin/settings","PATCH",{ paymentProvider:$("payProvider").value, paymentCurrency:$("payCur").value });
+  m.className="msg ok"; m.textContent="Saved - processor is now " + $("payProvider").value;
+  toast("Payment settings saved");
+}
+
+/* ------------------------------ Goal wall ---------------------------------- */
+let WALL=null;
+async function viewGoals(){
+  const p=$("panel");
+  p.innerHTML = `<h1>Goal wall</h1><div class="sub">Buying goals the storefront shows with a live progress bar. Lower $ first.</div>
+    <div class="card"><h2>Rewards</h2>
+      <div class="plist" id="wallList"><div class="empty">Loading...</div></div>
+      <div style="margin-top:12px" class="actions">
+        <button class="ghost sm" onclick="addGoalRow()">Add goal</button>
+        <button class="go sm" onclick="saveWall()">Save wall</button>
+        <span class="msg" id="wallMsg" style="margin-top:0"></span>
+      </div>
+    </div>
+    <div class="card"><h2>Goal-locked products <span class="hint">(only buyable once the store reaches their target)</span></h2>
+      <div class="plist" id="lockedList"></div>
+    </div>`;
+  const d = await api("/api/admin/settings");
+  WALL = Array.isArray(d.rewardWall)?d.rewardWall:[];
+  const pr = await api("/api/admin/products");
+  const locked = pr.products.filter(x=>x.goal_usd>0);
+  renderGoals(locked);
+}
+function renderGoals(locked){
+  $("wallList").innerHTML = WALL.map((w,i)=>`
+    <div class="prow">
+      <div class="grow" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <label class="d" style="font-size:12px;color:var(--ink-faint)">Target $</label><input id="wg_${i}" value="${num(w.goal)}" type="number" min="0" step="1" style="width:84px">
+        <label class="d" style="font-size:12px;color:var(--ink-faint)">Title</label><input id="wt_${i}" value="${esc(w.title)}" placeholder="ex: 100 sales" style="width:140px">
+        <label class="d" style="font-size:12px;color:var(--ink-faint)">Reward</label><input id="wr_${i}" value="${esc(w.reward)}" placeholder="ex: Everyone gets a free month" style="flex:1;min-width:160px">
+      </div>
+      <button class="ghost sm danger" onclick="removeGoalRow(${i})">Remove</button>
+    </div>`).join("") || `<div class="empty">No goals yet - add one to start the reward wall.</div>`;
+  $("lockedList").innerHTML = locked.map(p=>`<div class="prow"><div class="t">${esc(p.label)}</div><div class="grow"><span class="d">locked until $${num(p.goal_usd)} in store sales</span></div></div>`).join("") || `<div class="empty">No goal-locked products.</div>`;
+}
+function addGoalRow(){ WALL.push({goal:50,title:"",reward:""}); renderGoals(window.__locked||[]); }
+function removeGoalRow(i){ WALL.splice(i,1); renderGoals(window.__locked||[]); }
+async function saveWall(){
+  const m=$("wallMsg"); m.className="msg ok"; m.textContent="Saving...";
+  const wall = WALL.map((_,i)=>({ goal:$("wg_"+i).value, title:$("wt_"+i).value, reward:$("wr_"+i).value }));
+  await api("/api/admin/settings","PATCH",{ rewardWall:wall });
+  m.textContent="Saved.";
+  toast("Goal wall saved");
+  const pr = await api("/api/admin/products");
+  window.__locked = pr.products.filter(x=>x.goal_usd>0);
+}
+
+/* ----------------------------- Categories ---------------------------------- */
+async function viewCats(){
+  const p=$("panel");
+  p.innerHTML = `<h1>Categories</h1><div class="sub">Names shown on the storefront filter chips and section headers.</div>
+    <div class="card"><h2>Category names</h2>
+      <div class="plist" id="catList"><div class="empty">Loading...</div></div>
+      <div style="margin-top:12px" class="actions">
+        <button class="go sm" onclick="saveCats()">Save names</button>
+        <span class="msg" id="catMsg" style="margin-top:0"></span>
+      </div>
+    </div>`;
+  const d = await api("/api/admin/settings");
+  const labels = (d && d.categoryLabels) || {};
+  const KEYS = { streaming:"Streaming", music:"Music & Audio", utility:"Full Access Accounts" };
+  $("catList").innerHTML = Object.keys(KEYS).map(k=>`
+    <div class="prow">
+      <div class="grow" style="display:flex;gap:8px;align-items:center">
+        <span class="d" style="min-width:110px">${esc(KEYS[k])}</span>
+        <input id="cn_${k}" value="${esc(labels[k]||KEYS[k])}" maxlength="40" style="flex:1;min-width:200px">
+      </div>
+    </div>`).join("");
+}
+async function saveCats(){
+  const m=$("catMsg"); m.className="msg"; m.textContent="Saving...";
+  const labels = {};
+  ["streaming","music","utility"].forEach(k=>{ labels[k]=$("cn_"+k).value; });
+  await api("/api/admin/settings","PATCH",{ categoryLabels: labels });
+  m.className="msg ok"; m.textContent="Saved - the storefront now uses the new names.";
+  toast("Category names saved");
+}
+
+/* --------------------------- Variant price & stock -------------------------- */
+let VS_CTX = null;
+function openVariantStock(key, value){
+  VS_CTX = { key, value };
+  const p = (window.__allProds||[]).find(x=>x.key===key);
+  const v = p && p.versions.find(x=>x.value===value);
+  $("vsTarget").innerHTML = `<span class="pill ok" style="font-weight:600">${esc(p?p.label:key)}</span> <span class="d" style="margin:0">variant</span> <span class="pill">${esc((v&&v.label)||value)}</span>`;
+  $("vsModal").style.display = "flex";
+  vsRender();
+}
+function closeVariantStock(){
+  $("vsModal").style.display="none";
+  const inEditor = !!document.getElementById("edMsgVer");
+  VS_CTX=null;
+  if(inEditor && PROD_EDIT) renderProductEditor();
+}
+function vsVersion(){
+  const p = (window.__allProds||[]).find(x=>x.key===(VS_CTX&&VS_CTX.key));
+  return p ? p.versions.find(x=>x.value===VS_CTX.value) : null;
+}
+async function vsRender(){
+  const box=$("vsBody"); if(!box||!VS_CTX) return;
+  const v=vsVersion();
+  const avail = v ? (v._avail||0) : 0;
+  const inf = v ? v.stock===-1 : false;
+  box.innerHTML = `
+    <div class="inline" style="flex-wrap:wrap;gap:14px;align-items:flex-end">
+      <div class="field" style="margin:0"><label>Price $</label><input id="vsPrice" type="number" step="0.01" min="0" value="${v?Number(v.price):0}" style="width:96px"></div>
+      <div class="field" style="margin:0"><label>Compare-at $</label><input id="vsOrig" type="number" step="0.01" min="0" value="${v?Number(v.orig_price||0):0}" style="width:96px" placeholder="0"></div>
+      <div class="field" style="margin:0"><label>Cost $</label><input id="vsCost" type="number" step="0.01" min="0" value="${v?Number(v.cost||0):0}" style="width:96px" placeholder="0"></div>
+      <div class="field" style="margin:0"><label>Min qty</label><input id="vsMin" type="number" step="1" min="1" value="${v?Number(v.min_qty>0?v.min_qty:1):1}" style="width:74px"></div>
+      <div class="field" style="margin:0"><label>Max qty <span class="d">0=any</span></label><input id="vsMax" type="number" step="1" min="0" value="${v?Number(v.max_qty||0):0}" style="width:74px"></div>
+      <label class="check" style="white-space:nowrap;padding-bottom:9px"><input type="checkbox" id="vsInf" ${inf?"checked":""}> unlimited</label>
+      <button class="go sm" onclick="vsSaveSettings()">Save</button>
+      <span class="msg" id="vsMsg" style="margin-top:0"></span>
+    </div>
+    <div class="d" style="margin-top:10px" id="vsStockNote"></div>
+    <div class="rule" style="border-top:1px solid var(--line);margin:16px 0"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <h2 style="font-size:13px;margin:0">Stock items</h2>
+      <button class="go sm" onclick="itOpen()">+ Import items</button>
+    </div>
+    <div id="vsItems" style="margin-top:10px"><div class="empty">Loading...</div></div>`;
+  const infEl=$("vsInf"); if(infEl) infEl.onchange=vsStockNote;
+  vsStockNote();
+  await vsItemsLoad();
+}
+function vsStockNote(){
+  const el=$("vsStockNote"); if(!el) return;
+  const v=vsVersion();
+  const avail=v?(v._avail||0):0;
+  const inf=$("vsInf")&&$("vsInf").checked;
+  if(inf){
+    el.innerHTML=`<span style="color:var(--success);font-weight:600">Unlimited</span> \u2014 buyers can order any quantity. Imported items (${avail}) are still delivered if present.`;
+  } else {
+    el.innerHTML=`Stock comes from the item pool below: <b style="color:${avail>0?'var(--success)':'#e06a6a'}">${avail} in stock</b>. Buyers can't order more than this \u2014 import items to raise it.`;
+  }
+}
+async function vsRefreshAvail(){
+  const d=await api("/api/admin/products"); window.__allProds=d.products||[];
+  vsStockNote();
+}
+async function vsSaveSettings(){
+  const m=$("vsMsg"); m.className="msg"; m.textContent="Saving...";
+  if(!VS_CTX){ m.className="msg err"; m.textContent="No variant selected."; return; }
+  const inf=$("vsInf").checked;
+  try{
+    await api("/api/admin/versions","POST",{ productKey:VS_CTX.key, value:VS_CTX.value, price:$("vsPrice").value, origPrice:$("vsOrig").value, cost:$("vsCost").value, stock: inf?-1:0, minQty:$("vsMin").value, maxQty:$("vsMax").value });
+    m.className="msg ok"; m.textContent="Saved.";
+    toast("Price & stock saved");
+    await vsRefreshAvail();
+  }catch(e){ m.className="msg err"; m.textContent="Couldn't save: "+(e.message||"unknown error"); }
+}
+async function vsItemsLoad(){
+  const box=$("vsItems"); if(!box||!VS_CTX) return;
+  const d=await api("/api/admin/items?product="+encodeURIComponent(VS_CTX.key)+"&version="+encodeURIComponent(VS_CTX.value));
+  const badge=`<span class="pill ${d.inStock>0?"ok":""}">${d.inStock} in stock</span>`;
+  const rows=(d.items||[]).map(it=>itRow(it)).join("")||`<div class="empty">No items yet - use "+ Import items".</div>`;
+  box.innerHTML=`<div style="margin-bottom:10px">${badge} <span class="hint">each purchase consumes one item</span></div>`+rows;
+}
+function itRow(it){
+  const isSold = it.status==="sold";
+  return `<div class="prow" style="align-items:flex-start">
+    <div class="grow">
+      <textarea id="dc_${it.id}" rows="2" style="width:100%;font-family:monospace;font-size:12px" ${isSold?"disabled":""}>${esc(it.content)}</textarea>
+      <div class="d" style="margin-top:4px">${isSold?'<span class="pill">sold</span> \u00b7 '+new Date(it.soldAt).toLocaleString():'<span class="pill ok">in stock</span>'}</div>
+    </div>
+    <div class="actions">
+      ${isSold?"":`<button class="ghost sm" onclick="itSave(${it.id})">Save</button>`}
+      <button class="ghost sm danger" onclick="itDelete(${it.id})">Delete</button>
+    </div>
+  </div>`;
+}
+function parseItemInput(t){
+  const s = String(t||"");
+  const parts = s.includes(",") ? s.split(",") : s.split(/\r?\n/);
+  return parts.map(x=>x.replace(/\r/g,"").trim()).filter(Boolean);
+}
+function itOpen(){
+  if(!VS_CTX){ toast("Open a variant first"); return; }
+  const p=(window.__allProds||[]).find(x=>x.key===VS_CTX.key);
+  const v=p&&p.versions.find(x=>x.value===VS_CTX.value);
+  $("itModalTarget").innerHTML = `<span class="pill ok" style="font-weight:600">${esc(p?p.label:VS_CTX.key)}</span> <span class="d" style="margin:0">importing into</span> <span class="pill">${esc((v&&v.label)||VS_CTX.value)}</span>`;
+  $("itBulk").value="";
+  $("itCount").textContent="";
+  $("itMsg").className="msg"; $("itMsg").textContent="";
+  $("itModal").style.display="flex";
+  setTimeout(()=>{ const b=$("itBulk"); if(b) b.focus(); },60);
+}
+function itClose(){ $("itModal").style.display="none"; }
+function itCount(){
+  const el=$("itCount");
+  el.textContent = "";
+  const n = parseItemInput($("itBulk").value).length;
+  if(n){
+    el.textContent = n + " item" + (n>1?"s":"") + " ready to import";
+    el.style.color="var(--success)";
+  } else {
+    el.textContent = "Separate items with a comma. A single item can span multiple lines (kept together). No commas? Each line counts as one item.";
+    el.style.color="var(--ink-faint)";
+  }
+}
+async function itImport(){
+  const m=$("itMsg"); m.className="msg"; m.textContent="Importing...";
+  if(!VS_CTX){ m.className="msg err"; m.textContent="Open a variant first."; return; }
+  const contents = parseItemInput($("itBulk").value);
+  if(!contents.length){ m.className="msg err"; m.textContent="Paste at least one item first."; return; }
+  const d = await api("/api/admin/items","POST",{ productKey:VS_CTX.key, versionValue:VS_CTX.value, contents });
+  m.className="msg ok"; m.textContent="Added "+d.added+" item"+((d.added||0)>1?"s":"")+" to stock.";
+  itClose();
+  await vsRefreshAvail();
+  vsItemsLoad();
+  toast("Imported "+d.added+" item"+(d.added>1?"s":""));
+}
+async function itSave(id){ await api("/api/admin/items","PATCH",{ id, content:$("dc_"+id).value }); toast("Item updated"); await vsRefreshAvail(); vsItemsLoad(); }
+async function itDelete(id){ if(!confirm("Delete this item permanently?")) return; await api("/api/admin/items","DELETE",{ id }); toast("Item deleted"); await vsRefreshAvail(); vsItemsLoad(); }
+
+/* ----------------------- Variant details popup editor ----------------------- */
+let VD_CTX=null;
+function editVariantDetails(value,key){
+  const p=(window.__allProds||[]).find(x=>x.key===key);
+  const v=p&&p.versions.find(x=>x.value===value);
+  VD_CTX={value,key};
+  $("vdTitle").textContent = (p?p.label:key)+" - "+value;
+  $("vdText").value = v? (v.details||"") : "";
+  $("vdEditor").style.display="flex";
+}
+function closeVariantDetails(){ $("vdEditor").style.display="none"; VD_CTX=null; }
+async function saveVariantDetails(){
+  if(!VD_CTX) return;
+  const m=$("vdMsg"); m.className="msg"; m.textContent="Saving...";
+  try{
+    await api("/api/admin/versions","POST",{ productKey:VD_CTX.key, value:VD_CTX.value, details:$("vdText").value });
+    toast("Details saved");
+    closeVariantDetails();
+    const pr=await api("/api/admin/products"); window.__allProds=pr.products;
+  }catch(e){
+    if(m){ m.className="msg err"; m.textContent="Couldn't save: "+(e.message||"unknown error"); }
+  }
+}
+</script>
+<div id="vdEditor" style="display:none;position:fixed;inset:0;background:rgba(7,8,15,.6);z-index:90;align-items:center;justify-content:center;padding:20px;">
+  <div style="width:min(460px,94vw);background:var(--panel-2);border:1px solid var(--line);border-radius:16px;padding:22px;">
+    <h2 style="margin:0 0 2px;font-size:16px">Variant details</h2>
+    <div class="d" id="vdTitle" style="margin-bottom:10px"></div>
+    <div class="field"><label>Hover popup text</label><textarea id="vdText" style="width:100%;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 12px;color:var(--ink);font-size:13px;font-family:inherit;min-height:140px;resize:vertical" placeholder="Shown to buyers when they hover the plan on the store. One line per bullet is fine."></textarea></div>
+    <div class="actions">
+      <button class="ghost sm" onclick="closeVariantDetails()">Cancel</button>
+      <button class="go sm" onclick="saveVariantDetails()">Save</button>
+      <span class="msg" id="vdMsg" style="margin-top:0"></span>
+    </div>
+  </div>
+</div>
+</body>
+</html>
