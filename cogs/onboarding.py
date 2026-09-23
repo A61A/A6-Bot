@@ -32,36 +32,23 @@ class OnboardingCog(commands.Cog):
             except discord.DiscordException as err:
                 print(f"[onboarding] could not assign {BASE_ROLE_ID}: {err}")
 
-        # DM welcome
-        try:
-            await member.send(
-                embeds=[embeds.branded_embed(
-                    eyebrow="A6",
-                    title="Welcome!",
-                    description=(
-                        f"Welcome to **{member.guild.name}**, {member.mention}!\n\n"
-                        "Run **/hub** to open the Customer Portal, check your Pocket, or chat with support."
-                    ),
-                )],
-                files=[embeds.banner_file()],
-            )
-        except discord.Forbidden:
-            pass
-
-        # Channel welcome
+        # Channel welcome (no DM on join - channel-only)
         welcome_ch = await get_channel(self.bot, "welcome")
         if welcome_ch:
             try:
+                verify_ch = await get_channel(self.bot, "verify")
+                site_ch = await get_channel(self.bot, "site")
+                verify_ref = verify_ch.mention if verify_ch else "**#verify**"
+                site_ref = site_ch.mention if site_ch else "**#site**"
                 await welcome_ch.send(
                     content=member.mention,
                     embed=embeds.branded_embed(
-                        eyebrow="A6",
                         title="Welcome!",
                         description=(
-                            f"Welcome to **{member.guild.name}**, {member.mention}!\n\n"
-                            "Head over to **#verify** to get verified and **#site** to browse the store.\n\n"
-                            "Run **/hub** to open the Customer Portal, check your Pocket, or chat with support."
+                            f"You've just joined **{member.guild.name}**, {member.mention}!\n\n"
+                            f"Head over to {verify_ref} to get verified and {site_ref} to browse the store."
                         ),
+                        no_footer=True,
                     ),
                     files=[embeds.banner_file()],
                 )

@@ -14,6 +14,8 @@ import discord
 
 CHANNELS = {
     "welcome": os.getenv("WELCOME_CHANNEL_ID"),
+    "verify": os.getenv("VERIFY_CHANNEL_ID", "1513369257797353614"),
+    "site": os.getenv("SITE_CHANNEL_ID", "1513030482474963086"),
     "roleSelect": os.getenv("ROLE_SELECT_CHANNEL_ID"),
     "announcements": os.getenv("ANNOUNCEMENTS_CHANNEL_ID"),
     "modLog": os.getenv("MOD_LOG_CHANNEL_ID"),
