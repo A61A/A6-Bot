@@ -36,10 +36,11 @@ def build_orders_embed(purchases: list, page: int = 1):
         embed.set_footer(text="A6 - Custom Bot? DM Me! · updated live")
         return embed, None
 
-    pages = max(1, (len(purchases) + 7) // 8)
+    items_per_page = 5
+    pages = max(1, (len(purchases) + items_per_page - 1) // items_per_page)
     page = max(1, min(page, pages))
-    start = (page - 1) * 8
-    end = start + 8
+    start = (page - 1) * items_per_page
+    end = start + items_per_page
     visible = purchases[start:end]
 
     blocks = []
@@ -84,13 +85,7 @@ def build_orders_embed(purchases: list, page: int = 1):
     )
     embed.set_footer(text=f"Page {page} of {pages} · updated live")
     print(f"[build] Final embed description length: {len(embed.description)} chars")
-    print(f"[build] Lines count: {len(lines)}")
-    for i, line in enumerate(lines):
-        print(f"  Line {i}: {line[:100]}")
-    print(f"[build] Final embed description length: {len(embed.description)} chars")
-    print(f"[build] Lines count: {len(lines)}")
-    for i, line in enumerate(lines):
-        print(f"  Line {i}: {line[:100]}")
+    print(f"[build] Orders per page: 5 · pages: {pages}")
 
     view = None
     if pages > 1:
