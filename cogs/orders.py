@@ -167,6 +167,23 @@ class OrdersCog(commands.Cog):
             else:
                 await interaction.followup.send("Could not fetch orders.", ephemeral=True)
             return
+
+        # Only the Discord account linked to this website account may view its
+        # orders (same rule as the DM keyword handler).
+        if not data.get("discord_id"):
+            await interaction.followup.send(
+                "That account isn't linked to a Discord account, so only its owner can see the orders. "
+                "Link your Discord under **Account** on the website, then try again.",
+                ephemeral=True,
+            )
+            return
+        if str(data["discord_id"]) != str(interaction.user.id):
+            await interaction.followup.send(
+                "That account is linked to a different Discord user — you can't view their order history.",
+                ephemeral=True,
+            )
+            return
+
         embed, view = build_orders_embed(
             data["purchases"], 1,
             emoji_box=resolve_emoji(self.bot, 1551337344462757970) or EMOJI_BOX,
@@ -217,12 +234,28 @@ class OrdersCog(commands.Cog):
                 else:
                     await message.channel.send("Could not fetch orders.")
                 return
+
+            # Only the Discord account linked to this website account may view
+            # its orders. The site returns discord_id for the account; a null
+            # link means nobody should be able to pull it this way.
+            if not data.get("discord_id"):
+                await message.channel.send(
+                    "That account isn't linked to a Discord account, so only its owner can see the orders. "
+                    "Link your Discord under **Account** on the website, then try again."
+                )
+                return
+            if str(data["discord_id"]) != str(message.author.id):
+                await message.channel.send(
+                    "That account is linked to a different Discord user — you can't view their order history."
+                )
+                return
+
             embed, view = build_orders_embed(
-            data["purchases"], 1,
-            emoji_box=resolve_emoji(self.bot, 1551337344462757970) or EMOJI_BOX,
-            emoji_money=resolve_emoji(self.bot, 1550345635646152744) or EMOJI_MONEY,
-            emoji_key=resolve_emoji(self.bot, 1551337342097432576) or EMOJI_KEY,
-        )
+                data["purchases"], 1,
+                emoji_box=resolve_emoji(self.bot, 1551337344462757970) or EMOJI_BOX,
+                emoji_money=resolve_emoji(self.bot, 1550345635646152744) or EMOJI_MONEY,
+                emoji_key=resolve_emoji(self.bot, 1551337342097432576) or EMOJI_KEY,
+            )
             _RENDER_CACHE[message.author.id] = data["purchases"]
             print(f"[orders] Sending embed with {len(data['purchases'])} purchases")
             await message.channel.send(embed=embed, view=view)
