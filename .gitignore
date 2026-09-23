@@ -1,5 +1,7 @@
-﻿node_modules/
+node_modules/
+.venv/
 .env
 data/
+__pycache__/
+*.pyc
 *.log
-.git/
