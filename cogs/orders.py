@@ -15,8 +15,8 @@ SITE_BASE_URL = "https://a6hub.cc"
 
 # Custom emojis (box/money/key) so the embed matches the brand instead of stock.
 EMOJI_BOX = "<:dvdsv:1551337344462757970>"
-EMOJI_MONEY = "<a:v2_batch:1532943716879433787>"
-EMOJI_KEY = "<:Symbol_Right_Arrow:1422893415460241468>"
+EMOJI_MONEY = "<a:v2_cart:1550345635646152744>"
+EMOJI_KEY = "<:Symbol_Right_Arrow:1551337342097432576>"
 
 # Last purchases rendered per user so pagination buttons can rebuild pages
 # without refetching (also guards against stale buttons after a restart).
@@ -50,7 +50,7 @@ def resolve_emoji(bot: commands.Bot, emoji_id: int) -> str | None:
 def emoji_debug_line(bot: commands.Bot) -> str:
     """Report what the bot actually knows about the three brand emoji IDs."""
     out = []
-    for label, eid in (("box", 1551337344462757970), ("money", 1532943716879433787), ("arrow", 1422893415460241468)):
+    for label, eid in (("box", 1551337344462757970), ("money", 1550345635646152744), ("arrow", 1551337342097432576)):
         emoji = bot.get_emoji(eid)
         if emoji is None:
             out.append(f"- {label} ({eid}): NOT FOUND on this bot")
@@ -170,8 +170,8 @@ class OrdersCog(commands.Cog):
         embed, view = build_orders_embed(
             data["purchases"], 1,
             emoji_box=resolve_emoji(self.bot, 1551337344462757970) or EMOJI_BOX,
-            emoji_money=resolve_emoji(self.bot, 1532943716879433787) or EMOJI_MONEY,
-            emoji_key=resolve_emoji(self.bot, 1422893415460241468) or EMOJI_KEY,
+            emoji_money=resolve_emoji(self.bot, 1550345635646152744) or EMOJI_MONEY,
+            emoji_key=resolve_emoji(self.bot, 1551337342097432576) or EMOJI_KEY,
         )
         _RENDER_CACHE[interaction.user.id] = data["purchases"]
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
@@ -220,8 +220,8 @@ class OrdersCog(commands.Cog):
             embed, view = build_orders_embed(
             data["purchases"], 1,
             emoji_box=resolve_emoji(self.bot, 1551337344462757970) or EMOJI_BOX,
-            emoji_money=resolve_emoji(self.bot, 1532943716879433787) or EMOJI_MONEY,
-            emoji_key=resolve_emoji(self.bot, 1422893415460241468) or EMOJI_KEY,
+            emoji_money=resolve_emoji(self.bot, 1550345635646152744) or EMOJI_MONEY,
+            emoji_key=resolve_emoji(self.bot, 1551337342097432576) or EMOJI_KEY,
         )
             _RENDER_CACHE[message.author.id] = data["purchases"]
             print(f"[orders] Sending embed with {len(data['purchases'])} purchases")
@@ -261,8 +261,8 @@ async def orders_page(interaction: discord.Interaction, rest: list[str]):
     embed, view = build_orders_embed(
         data, page,
         emoji_box=resolve_emoji(interaction.client, 1551337344462757970) or EMOJI_BOX,
-        emoji_money=resolve_emoji(interaction.client, 1532943716879433787) or EMOJI_MONEY,
-        emoji_key=resolve_emoji(interaction.client, 1422893415460241468) or EMOJI_KEY,
+        emoji_money=resolve_emoji(interaction.client, 1550345635646152744) or EMOJI_MONEY,
+        emoji_key=resolve_emoji(interaction.client, 1551337342097432576) or EMOJI_KEY,
     )
 
     # Edit in place so pagination feels instant for both /orders (ephemeral)
