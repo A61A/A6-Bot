@@ -42,10 +42,27 @@ def build_orders_embed(purchases: list, page: int = 1):
     end = start + 8
     visible = purchases[start:end]
 
-    lines = []
+    blocks = []
     for i, p in enumerate(visible):
         product_label = p.get("product_label") or p.get("product_key", "Product").replace("_", " ").title()
         version_label = p.get("version_label") or p.get("version_value", "").replace("_", " ").title()
+
+        # Delivery content (keys/downloads) — new API sends `delivered` as a list
+        # of {content, sold_at} objects; old API sent a plain string list under
+        # `delivery_content`. Accept both so the embed renders regardless.
+        raw = p.get("delivered", None)
+        if raw is None:
+            raw = p.get("delivery_content", [])
+        keys = []
+        for c in raw:
+            if isinstance(c, dict):
+                if c.get("content"):
+                    keys.append(str(c["content"]))
+            elif c:
+                keys.append(str(c))
+        # Keep long key lines (e.g. "pastebin | Pass: ...") within the embed width.
+        keys = [f"{k[:120]}{'…' if len(k) > 120 else ''}" for k in keys]
+
         price = p.get("price", 0)
         qty = p.get("qty", 1)
         ts = p.get("purchased_at", 0)
@@ -53,35 +70,17 @@ def build_orders_embed(purchases: list, page: int = 1):
         date_str = ""
         if ts:
             date_str = datetime.fromtimestamp(ts / 1000).strftime("%b %d, %Y")
-        
-        print(f"[build] Purchase {i+1}: {p.get('product_key')} - {p.get('version_value')} - delivery: {p.get('delivery_content', [])}")
-        
-        # Main order line
-        lines.append(f"📦 **{product_label}** · {version_label}\n    💵 **{price} credits** · `{qty}x` · {date_str}")
-        
-        # Delivery content (keys/downloads) — new API sends `delivered` as a list
-        # of {content, sold_at} objects; old API sent a plain string list under
-        # `delivery_content`. Accept both so the embed renders regardless.
-        raw_delivery = p.get("delivered", None)
-        if raw_delivery is None:
-            raw_delivery = p.get("delivery_content", [])
 
-        delivery_content = []
-        for c in raw_delivery:
-            if isinstance(c, dict):
-                if c.get("content"):
-                    delivery_content.append(c["content"])
-            elif c:
-                delivery_content.append(c)
-
-        print(f"[build] Delivery content for {p.get('product_key')}: {delivery_content}")
-        for content in delivery_content:
-            lines.append(f"    🔑 `{content}`")
+        block = [f"📦 **{product_label}** · {version_label}"]
+        block.append(f"    💵 **{price} credits** · `{qty}x` · {date_str}")
+        for k in keys:
+            block.append(f"    🔑 `{k}`")
+        blocks.append("\n".join(block))
 
     embed = discord.Embed(
         color=0x8B5CF6,
         title="📦 All Orders",
-        description=f"**{len(purchases)} order{'s' if len(purchases) != 1 else ''}**\n\n" + "\n\n".join(lines),
+        description=f"**{len(blocks)} order{'s' if len(blocks) != 1 else ''}**\n\n" + "\n\n".join(blocks),
     )
     embed.set_footer(text=f"Page {page} of {pages} · updated live")
     print(f"[build] Final embed description length: {len(embed.description)} chars")
