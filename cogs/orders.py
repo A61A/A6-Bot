@@ -47,6 +47,19 @@ def resolve_emoji(bot: commands.Bot, emoji_id: int) -> str | None:
     return f"<{prefix}:{emoji.name}:{emoji.id}>"
 
 
+def emoji_debug_line(bot: commands.Bot) -> str:
+    """Report what the bot actually knows about the three brand emoji IDs."""
+    out = []
+    for label, eid in (("box", 1551337344462757970), ("money", 1532943716879433787), ("arrow", 1422893415460241468)):
+        emoji = bot.get_emoji(eid)
+        if emoji is None:
+            out.append(f"- {label} ({eid}): NOT FOUND on this bot")
+        else:
+            prefix = "a" if emoji.animated else ""
+            out.append(f"- {label} ({eid}): <{prefix}:{emoji.name}:{emoji.id}>")
+    return "\n".join(out)
+
+
 def build_orders_embed(
     purchases: list,
     page: int = 1,
@@ -180,6 +193,11 @@ class OrdersCog(commands.Cog):
 
         first_word = parts[0].lower()
         print(f"[orders] First word: '{first_word}'")
+        if first_word == "emoji-debug":
+            await message.channel.send(
+                f"{len(self.bot.emojis)} emojis visible to the bot.\n{emoji_debug_line(self.bot)}"
+            )
+            return
         if first_word in ("orders", "order", "my orders", "all orders"):
             print(f"[orders] Keyword matched!")
             if len(parts) >= 2:
