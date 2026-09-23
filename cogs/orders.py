@@ -15,7 +15,7 @@ SITE_BASE_URL = "https://a6hub.cc"
 
 # Custom emojis (box/money/key) so the embed matches the brand instead of stock.
 EMOJI_BOX = "<:dvdsv:1551337344462757970>"
-EMOJI_MONEY = "<:v2_batch:1532943716879433787>"
+EMOJI_MONEY = "<a:v2_batch:1532943716879433787>"
 EMOJI_KEY = "<:Symbol_Right_Arrow:1422893415460241468>"
 
 # Last purchases rendered per user so pagination buttons can rebuild pages
