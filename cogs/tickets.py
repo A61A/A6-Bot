@@ -169,6 +169,13 @@ class TicketsCog(commands.Cog):
             return
 
         user_id = message.author.id
+
+        # Let the orders cog (and any other keyword handler) respond to its raw
+        # keywords instead of showing the support prelude — don't send anything here.
+        first = (message.content or "").strip().split()
+        if first and first[0].lower() in ("orders", "order"):
+            return
+
         ticket = db.get_open_ticket_by_dm(str(user_id), str(message.channel.id))
         if ticket is None:
             await message.channel.send(embeds=[_dm_prelude_embed()], files=[embeds.banner_file()])
