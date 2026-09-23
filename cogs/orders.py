@@ -10,8 +10,17 @@ from discord import app_commands
 from cogs import router
 from config import embeds
 
-ORDERS_PER_PAGE = 8
+ORDERS_PER_PAGE = 5
 SITE_BASE_URL = "https://a6hub.cc"
+
+# Custom emojis (box/money/key) so the embed matches the brand instead of stock.
+EMOJI_BOX = "<:dvdsv:1551337344462757970>"
+EMOJI_MONEY = "<:v2_batch:1532943716879433787>"
+EMOJI_KEY = "<:Symbol_Right_Arrow:1422893415460241468>"
+
+# Last purchases rendered per user so pagination buttons can rebuild pages
+# without refetching (also guards against stale buttons after a restart).
+_RENDER_CACHE: dict[int, list] = {}
 
 
 async def fetch_orders_by_username(session: aiohttp.ClientSession, username: str) -> dict:
@@ -30,7 +39,7 @@ def build_orders_embed(purchases: list, page: int = 1):
     if not purchases:
         embed = discord.Embed(
             color=0x2A2D3D,
-            title="📦 All Orders",
+title=f"{EMOJI_BOX} All Orders",
             description="No purchases yet. Buy something from the catalog and it'll appear here.",
         )
         embed.set_footer(text="A6 - Custom Bot? DM Me! · updated live")
@@ -72,15 +81,15 @@ def build_orders_embed(purchases: list, page: int = 1):
         if ts:
             date_str = datetime.fromtimestamp(ts / 1000).strftime("%b %d, %Y")
 
-        block = [f"📦 **{product_label}** · {version_label}"]
-        block.append(f"    💵 **{price} credits** · `{qty}x` · {date_str}")
+        block = [f"{EMOJI_BOX} **{product_label}** · {version_label}"]
+        block.append(f"    {EMOJI_MONEY} **{price} credits** · `{qty}x` · {date_str}")
         for k in keys:
-            block.append(f"    🔑 `{k}`")
+            block.append(f"    {EMOJI_KEY} `{k}`")
         blocks.append("\n".join(block))
 
     embed = discord.Embed(
         color=0x8B5CF6,
-        title="📦 All Orders",
+        title=f"{EMOJI_BOX} All Orders",
         description=f"**{len(blocks)} order{'s' if len(blocks) != 1 else ''}**\n\n" + "\n\n".join(blocks),
     )
     embed.set_footer(text=f"Page {page} of {pages} · updated live")
@@ -90,16 +99,16 @@ def build_orders_embed(purchases: list, page: int = 1):
     view = None
     if pages > 1:
         view = discord.ui.View(timeout=600)
-        prev_btn = discord.ui.Button(
+        prev_btn = router.RouterButton(
+            custom_id=f"orders:page:{page - 1}",
             label="◀ Prev",
             style=discord.ButtonStyle.secondary,
-            custom_id=f"orders:page:{page - 1}",
             disabled=page <= 1,
         )
-        next_btn = discord.ui.Button(
+        next_btn = router.RouterButton(
+            custom_id=f"orders:page:{page + 1}",
             label="Next ▶",
             style=discord.ButtonStyle.secondary,
-            custom_id=f"orders:page:{page + 1}",
             disabled=page >= pages,
         )
         view.add_item(prev_btn)
@@ -127,6 +136,7 @@ class OrdersCog(commands.Cog):
                 await interaction.followup.send("Could not fetch orders.", ephemeral=True)
             return
         embed, view = build_orders_embed(data["purchases"], 1)
+        _RENDER_CACHE[interaction.user.id] = data["purchases"]
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
     @commands.Cog.listener()
@@ -166,6 +176,7 @@ class OrdersCog(commands.Cog):
                     await message.channel.send("Could not fetch orders.")
                 return
             embed, view = build_orders_embed(data["purchases"], 1)
+            _RENDER_CACHE[message.author.id] = data["purchases"]
             print(f"[orders] Sending embed with {len(data['purchases'])} purchases")
             await message.channel.send(embed=embed, view=view)
             print(f"[orders] Embed sent successfully")
@@ -184,12 +195,35 @@ class OrdersCog(commands.Cog):
 @router.button("orders:page")
 async def orders_page(interaction: discord.Interaction, rest: list[str]):
     if not rest:
+        await interaction.response.send_message("Use `/orders <username>` to view your order history.", ephemeral=True)
         return
     try:
         page = int(rest[0])
     except ValueError:
+        await interaction.response.send_message("That page is invalid — run `/orders <username>` again.", ephemeral=True)
         return
-    await interaction.response.send_message("Use `/orders <username>` to view orders.", ephemeral=True)
+
+    data = _RENDER_CACHE.get(interaction.user.id)
+    if not data:
+        await interaction.response.send_message(
+            "That message is stale (or the bot restarted). Use `/orders <username>` to get a fresh list.",
+            ephemeral=True,
+        )
+        return
+
+    embed, view = build_orders_embed(data, page)
+
+    # Edit in place so pagination feels instant for both /orders (ephemeral)
+    # and DM embeds. Deferring first keeps us inside the 3s interaction window.
+    try:
+        await interaction.response.defer()
+        await interaction.message.edit(embed=embed, view=view)
+    except discord.NotFound:
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+    except discord.HTTPException:
+        await interaction.followup.send(
+            "Could not update that page — run `/orders <username>` again.", ephemeral=True
+        )
 
 
 async def setup(bot: commands.Bot):
