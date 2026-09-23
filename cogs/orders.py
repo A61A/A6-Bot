@@ -9,6 +9,7 @@ from discord import app_commands
 
 from cogs import router
 from config import embeds
+from config.roles import is_owner
 
 ORDERS_PER_PAGE = 5
 SITE_BASE_URL = "https://a6hub.cc"
@@ -168,21 +169,23 @@ class OrdersCog(commands.Cog):
                 await interaction.followup.send("Could not fetch orders.", ephemeral=True)
             return
 
-        # Only the Discord account linked to this website account may view its
-        # orders (same rule as the DM keyword handler).
-        if not data.get("discord_id"):
-            await interaction.followup.send(
-                "That account isn't linked to a Discord account, so only its owner can see the orders. "
-                "Link your Discord under **Account** on the website, then try again.",
-                ephemeral=True,
-            )
-            return
-        if str(data["discord_id"]) != str(interaction.user.id):
-            await interaction.followup.send(
-                "That account is linked to a different Discord user — you can't view their order history.",
-                ephemeral=True,
-            )
-            return
+        # Owner/admins may view any account's orders. Otherwise, only the
+        # Discord account linked to this website account may view its orders
+        # (same rule as the DM keyword handler).
+        if not is_owner(interaction.user.id):
+            if not data.get("discord_id"):
+                await interaction.followup.send(
+                    "That account isn't linked to a Discord account, so only its owner can see the orders. "
+                    "Link your Discord under **Account** on the website, then try again.",
+                    ephemeral=True,
+                )
+                return
+            if str(data["discord_id"]) != str(interaction.user.id):
+                await interaction.followup.send(
+                    "That account is linked to a different Discord user — you can't view their order history.",
+                    ephemeral=True,
+                )
+                return
 
         embed, view = build_orders_embed(
             data["purchases"], 1,
@@ -235,20 +238,22 @@ class OrdersCog(commands.Cog):
                     await message.channel.send("Could not fetch orders.")
                 return
 
-            # Only the Discord account linked to this website account may view
-            # its orders. The site returns discord_id for the account; a null
-            # link means nobody should be able to pull it this way.
-            if not data.get("discord_id"):
-                await message.channel.send(
-                    "That account isn't linked to a Discord account, so only its owner can see the orders. "
-                    "Link your Discord under **Account** on the website, then try again."
-                )
-                return
-            if str(data["discord_id"]) != str(message.author.id):
-                await message.channel.send(
-                    "That account is linked to a different Discord user — you can't view their order history."
-                )
-                return
+            # Owner/admins may view any account's orders. Otherwise, only the
+            # Discord account linked to this website account may view its
+            # orders (the site returns discord_id for the account; a null
+            # link means nobody should be able to pull it this way).
+            if not is_owner(message.author.id):
+                if not data.get("discord_id"):
+                    await message.channel.send(
+                        "That account isn't linked to a Discord account, so only its owner can see the orders. "
+                        "Link your Discord under **Account** on the website, then try again."
+                    )
+                    return
+                if str(data["discord_id"]) != str(message.author.id):
+                    await message.channel.send(
+                        "That account is linked to a different Discord user — you can't view their order history."
+                    )
+                    return
 
             embed, view = build_orders_embed(
                 data["purchases"], 1,
