@@ -34,12 +34,31 @@ async def fetch_orders_by_username(session: aiohttp.ClientSession, username: str
         return await resp.json()
 
 
-def build_orders_embed(purchases: list, page: int = 1):
+def resolve_emoji(bot: commands.Bot, emoji_id: int) -> str | None:
+    """Return the exact `<a:name:id>` markup for a custom emoji known to the bot.
+
+    Names are matched by ID at render time, so a rename (or a wrong guess in
+    the constants below) can never leave a dangling markup in the embed.
+    """
+    emoji = bot.get_emoji(emoji_id)
+    if emoji is None:
+        return None
+    prefix = "a" if emoji.animated else ""
+    return f"<{prefix}:{emoji.name}:{emoji.id}>"
+
+
+def build_orders_embed(
+    purchases: list,
+    page: int = 1,
+    emoji_box: str = EMOJI_BOX,
+    emoji_money: str = EMOJI_MONEY,
+    emoji_key: str = EMOJI_KEY,
+):
     """Build the orders embed with pagination."""
     if not purchases:
         embed = discord.Embed(
             color=0x2A2D3D,
-title=f"{EMOJI_BOX} All Orders",
+title=f"{emoji_box} All Orders",
             description="No purchases yet. Buy something from the catalog and it'll appear here.",
         )
         embed.set_footer(text="A6 - Custom Bot? DM Me! · updated live")
@@ -81,15 +100,15 @@ title=f"{EMOJI_BOX} All Orders",
         if ts:
             date_str = datetime.fromtimestamp(ts / 1000).strftime("%b %d, %Y")
 
-        block = [f"{EMOJI_BOX} **{product_label}** · {version_label}"]
-        block.append(f"    {EMOJI_MONEY} **{price} credits** · `{qty}x` · {date_str}")
+        block = [f"{emoji_box} **{product_label}** · {version_label}"]
+        block.append(f"    {emoji_money} **{price} credits** · `{qty}x` · {date_str}")
         for k in keys:
-            block.append(f"    {EMOJI_KEY} `{k}`")
+            block.append(f"    {emoji_key} `{k}`")
         blocks.append("\n".join(block))
 
     embed = discord.Embed(
         color=0x8B5CF6,
-        title=f"{EMOJI_BOX} All Orders",
+title=f"{emoji_box} All Orders",
         description=f"**{len(blocks)} order{'s' if len(blocks) != 1 else ''}**\n\n" + "\n\n".join(blocks),
     )
     embed.set_footer(text=f"Page {page} of {pages} · updated live")
@@ -135,7 +154,12 @@ class OrdersCog(commands.Cog):
             else:
                 await interaction.followup.send("Could not fetch orders.", ephemeral=True)
             return
-        embed, view = build_orders_embed(data["purchases"], 1)
+        embed, view = build_orders_embed(
+            data["purchases"], 1,
+            emoji_box=resolve_emoji(self.bot, 1551337344462757970) or EMOJI_BOX,
+            emoji_money=resolve_emoji(self.bot, 1532943716879433787) or EMOJI_MONEY,
+            emoji_key=resolve_emoji(self.bot, 1422893415460241468) or EMOJI_KEY,
+        )
         _RENDER_CACHE[interaction.user.id] = data["purchases"]
         await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
@@ -175,7 +199,12 @@ class OrdersCog(commands.Cog):
                 else:
                     await message.channel.send("Could not fetch orders.")
                 return
-            embed, view = build_orders_embed(data["purchases"], 1)
+            embed, view = build_orders_embed(
+            data["purchases"], 1,
+            emoji_box=resolve_emoji(self.bot, 1551337344462757970) or EMOJI_BOX,
+            emoji_money=resolve_emoji(self.bot, 1532943716879433787) or EMOJI_MONEY,
+            emoji_key=resolve_emoji(self.bot, 1422893415460241468) or EMOJI_KEY,
+        )
             _RENDER_CACHE[message.author.id] = data["purchases"]
             print(f"[orders] Sending embed with {len(data['purchases'])} purchases")
             await message.channel.send(embed=embed, view=view)
@@ -211,7 +240,12 @@ async def orders_page(interaction: discord.Interaction, rest: list[str]):
         )
         return
 
-    embed, view = build_orders_embed(data, page)
+    embed, view = build_orders_embed(
+        data, page,
+        emoji_box=resolve_emoji(interaction.client, 1551337344462757970) or EMOJI_BOX,
+        emoji_money=resolve_emoji(interaction.client, 1532943716879433787) or EMOJI_MONEY,
+        emoji_key=resolve_emoji(interaction.client, 1422893415460241468) or EMOJI_KEY,
+    )
 
     # Edit in place so pagination feels instant for both /orders (ephemeral)
     # and DM embeds. Deferring first keeps us inside the 3s interaction window.
