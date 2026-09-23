@@ -59,12 +59,24 @@ def build_orders_embed(purchases: list, page: int = 1):
         # Main order line
         lines.append(f"📦 **{product_label}** · {version_label}\n    💵 **{price} credits** · `{qty}x` · {date_str}")
         
-        # Delivery content (keys/downloads)
-        delivery_content = p.get("delivery_content", [])
+        # Delivery content (keys/downloads) — new API sends `delivered` as a list
+        # of {content, sold_at} objects; old API sent a plain string list under
+        # `delivery_content`. Accept both so the embed renders regardless.
+        raw_delivery = p.get("delivered", None)
+        if raw_delivery is None:
+            raw_delivery = p.get("delivery_content", [])
+
+        delivery_content = []
+        for c in raw_delivery:
+            if isinstance(c, dict):
+                if c.get("content"):
+                    delivery_content.append(c["content"])
+            elif c:
+                delivery_content.append(c)
+
         print(f"[build] Delivery content for {p.get('product_key')}: {delivery_content}")
         for content in delivery_content:
-            if content:
-                lines.append(f"    🔑 `{content}`")
+            lines.append(f"    🔑 `{content}`")
 
     embed = discord.Embed(
         color=0x8B5CF6,
