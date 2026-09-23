@@ -40,17 +40,20 @@ class OnboardingCog(commands.Cog):
                 site_ch = await get_channel(self.bot, "site")
                 verify_ref = verify_ch.mention if verify_ch else "**#verify**"
                 site_ref = site_ch.mention if site_ch else "**#site**"
+                embed = embeds.branded_embed(
+                    title="Welcome!",
+                    description=(
+                        f"Thanks for joining **{member.guild.name}**, {member.mention}!\n\n"
+                        f"Head over to {verify_ref} to get verified and {site_ref} to browse the store."
+                    ),
+                    no_banner=True,
+                    no_footer=True,
+                )
+                embed.set_footer(text=embeds.BRAND_NAME)
                 await welcome_ch.send(
                     content=member.mention,
-                    embed=embeds.branded_embed(
-                        title="Welcome!",
-                        description=(
-                            f"You've just joined **{member.guild.name}**, {member.mention}!\n\n"
-                            f"Head over to {verify_ref} to get verified and {site_ref} to browse the store."
-                        ),
-                        no_footer=True,
-                    ),
-                    files=[embeds.banner_file()],
+                    embed=embed,
+                    files=[],
                 )
             except discord.DiscordException as err:
                 print(f"[onboarding] could not send welcome to channel: {err}")
