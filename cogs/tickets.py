@@ -161,34 +161,23 @@ class TicketsCog(commands.Cog):
         self.bot = bot
         bot.add_view(router.build_persistent_view(PERSISTENT_CONTROLS))
 
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-        if message.author.bot:
-            return
-        if not isinstance(message.channel, discord.DMChannel):
-            return
+@commands.Cog.listener()
+async def on_message(self, message: discord.Message):
+    if message.author.bot:
+        return
+    if not isinstance(message.channel, discord.DMChannel):
+        return
 
-        user_id = message.author.id
+    user_id = message.author.id
 
-        # Let the orders cog (and any other keyword handler) respond to its raw
-        # keywords instead of showing the support prelude — don't send anything here.
-        first = (message.content or "").strip().split()
-        if first and first[0].lower() in ("orders", "order"):
-            return
+    # Let the orders cog (and any other keyword handler) respond to its raw
+    # keywords instead of showing the support prelude — don't send anything here.
+    first = (message.content or "").strip().split()
+    if first and first[0].lower() in ("orders", "order"):
+        return
 
-        ticket = db.get_open_ticket_by_dm(str(user_id), str(message.channel.id))
-        if ticket is None:
-            await message.channel.send(embeds=[_dm_prelude_embed()], files=[embeds.banner_file()])
-            return
-
-        db.touch_ticket(ticket["id"])
-        target_id = ticket["channel_id"] or ticket["admin_channel_id"]
-        target = self.bot.get_channel(int(target_id)) if target_id else None
-        if target is not None:
-            try:
-                await _mirror_to_channel(target, message, label="Customer")
-            except discord.DiscordException:
-                pass
+    # Support prelude disabled — this will be rebuilt later.
+    return
 
 
 async def setup(bot: commands.Bot):
