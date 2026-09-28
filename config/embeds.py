@@ -41,20 +41,12 @@ def branded_embed(
     description: str | None = None,
     fields: list[tuple[str, str, bool]] | None = None,
     color: int = VIOLET,
-    eyebrow: str | None = None,
-    image: str | None = None,
-    no_banner: bool = False,
-    no_footer: bool = False,
 ) -> discord.Embed:
-    """Build a themed embed: tinted border, banner strip, eyebrow, footer.
+    """Build a themed embed: tinted border only.
 
-    Pass `image` when the screen needs the image slot for something else
-    (e.g. a payment QR), `no_banner=True` to skip the strip entirely, or
-    `no_footer=True` to drop the "A6 - Custom Bot? DM Me!" footer line.
+    Stripped of: eyebrow, image/banner, footer.
     """
     embed = discord.Embed(color=color)
-    if eyebrow:
-        embed.set_author(name=eyebrow)
     if title:
         embed.title = title
     if description:
@@ -62,10 +54,5 @@ def branded_embed(
     if fields:
         for name, value, inline in fields:
             embed.add_field(name=name, value=value, inline=inline)
-    if not no_footer:
-        embed.set_footer(text=f"{BRAND_NAME} · updated live")
-    if image:
-        embed.set_image(url=image)
-    elif not no_banner:
-        embed.set_image(url=f"attachment://{BANNER_FILENAME}")
+    # NO set_footer — footer stripped per request
     return embed

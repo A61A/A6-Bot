@@ -258,6 +258,17 @@ def open_tickets_before(older_than_ms: int) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+def get_open_ticket_by_user(user_id: str) -> sqlite3.Row | None:
+    return _conn.execute(
+        "SELECT * FROM tickets WHERE user_id = ? AND status = 'open' ORDER BY id DESC LIMIT 1",
+        (str(user_id),),
+    ).fetchone()
+
+
+def get_open_tickets() -> list[sqlite3.Row]:
+    return _conn.execute("SELECT * FROM tickets WHERE status = 'open'").fetchall()
+
+
 # --------------------------------------------------------------------------
 # Payments
 # --------------------------------------------------------------------------
