@@ -166,7 +166,7 @@ class PaymentsCog(commands.Cog):
         self._sweeper_task = None
 
     async def cog_load(self):
-        self._sweeper_task = self.bot.loop.create_task(self._sweeper())
+        self._sweeper_task = asyncio.create_task(self._sweeper())
 
     async def cog_unload(self):
         if self._sweeper_task:
