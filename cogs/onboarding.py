@@ -46,10 +46,8 @@ class OnboardingCog(commands.Cog):
                         f"Thanks for joining **{member.guild.name}**, {member.mention}!\n\n"
                         f"Head over to {verify_ref} to get verified and {site_ref} to browse the store."
                     ),
-                    no_banner=True,
-                    no_footer=True,
+                    color=embeds.NEUTRAL,
                 )
-                embed.set_footer(text=embeds.BRAND_NAME)
                 await welcome_ch.send(
                     content=member.mention,
                     embed=embed,
