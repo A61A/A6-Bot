@@ -47,7 +47,7 @@ def kiosk_buttons() -> list[dict]:
         v2.action_button("kiosk:show:support", "Support", v2.SECONDARY_BUTTON),
         # Link buttons open the URL directly but Discord always renders
         # them grey - blue is only for action buttons.
-        v2.link_button("Website", SITE_URL, emoji="↗️"),
+        v2.link_button("Website", SITE_URL),
     ]
 
 

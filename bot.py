@@ -52,7 +52,7 @@ async def on_message(message: discord.Message):
 
 
 async def load_cogs():
-    for cog in ("hub", "pocket", "portal", "tickets", "payments", "onboarding", "orders", "kiosk"):
+    for cog in ("hub", "pocket", "portal", "tickets", "payments", "onboarding", "orders", "kiosk", "sitekiosk"):
         try:
             print(f"[nodeline] attempting to load cogs.{cog}")
             await bot.load_extension(f"cogs.{cog}")
