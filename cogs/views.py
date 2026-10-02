@@ -68,18 +68,24 @@ def hub_home_button_view(user: discord.User) -> discord.ui.View:
     return router.make_view([[hub_home_button(user)]])
 
 
+def product_select_options() -> list[discord.SelectOption]:
+    """Dropdown options for the visible catalog. Shared by portal_menu and the kiosk Menu follow-up."""
+    options = []
+    for p in _visible_products():
+        if p.get("coming_soon"):
+            options.append(discord.SelectOption(label=f"{p['label']} — Soon…", value=p["key"]))
+        else:
+            options.append(discord.SelectOption(label=p["label"], value=p["key"], emoji=p.get("emoji")))
+    return options
+
+
 def portal_menu(user: discord.User, bot: discord.Client | None = None) -> tuple[discord.Embed, discord.ui.View]:
     products = _visible_products()
     embed = embeds.branded_embed(
         title="Portal — Catalog",
         description="Pick a product below to view it and purchase.",
     )
-    options = []
-    for p in products:
-        if p.get("coming_soon"):
-            options.append(discord.SelectOption(label=f"{p['label']} — Soon…", value=p["key"]))
-        else:
-            options.append(discord.SelectOption(label=p["label"], value=p["key"], emoji=p.get("emoji")))
+    options = product_select_options()
     view = router.make_view(
         [
             [

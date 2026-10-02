@@ -11,10 +11,9 @@ import os
 import discord
 from discord.ext import commands
 
-from cogs import router
+from cogs import router, views
 from config import embeds
 from config.channels import CHANNELS
-from config.products import PRODUCTS
 from config.roles import is_owner
 from lib import v2
 
@@ -38,39 +37,29 @@ def kiosk_fields() -> list[tuple[str, str]]:
     ]
 
 
+SITE_URL = os.getenv("SHOP_URL", "https://a6hub.cc")
+
+
 def kiosk_buttons() -> list[dict]:
     return [
-        v2.action_button("kiosk:show:howto", "How to use", v2.PRIMARY_BUTTON),
-        v2.action_button("kiosk:show:products", "Products", v2.SECONDARY_BUTTON),
+        v2.action_button("kiosk:show:howto", "Menu", v2.PRIMARY_BUTTON),
+        v2.action_button("kiosk:show:bank", "Bank", v2.SECONDARY_BUTTON),
         v2.action_button("kiosk:show:support", "Support", v2.SECONDARY_BUTTON),
+        # Link buttons are always grey - a blue button has to be an action
+        # button, so Website answers with the clickable link instead.
+        v2.action_button("kiosk:show:site", "Website", v2.PRIMARY_BUTTON),
     ]
 
 
 def howto_embed() -> discord.Embed:
     return embeds.branded_embed(
-        title="How to use A6",
+        title="Menu",
         description=(
             "1. Run **/hub** anywhere.\n"
             "2. **Portal** — browse the catalog and spend credits.\n"
             "3. **Pocket** — balance, redeem codes, top up with crypto.\n"
             "4. **Support** — open a chat, we reply right in your DMs."
         ),
-        hero=False,
-    )
-
-
-def products_embed() -> discord.Embed:
-    fields: list[tuple[str, str, bool]] = []
-    for p in PRODUCTS:
-        if p.get("hidden"):
-            continue
-        versions = ", ".join(f"{ver['label']} — {ver['price']}" for ver in p["versions"])
-        label = p["label"] + (" (soon)" if p.get("coming_soon") else "")
-        fields.append((label, versions, False))
-    return embeds.branded_embed(
-        title="Products",
-        description="Live catalog — prices in credits ($1 = 1 credit).",
-        fields=fields,
         hero=False,
     )
 
@@ -86,17 +75,74 @@ def support_embed() -> discord.Embed:
     )
 
 
+def site_embed() -> discord.Embed:
+    return embeds.branded_embed(
+        title="Website",
+        description=f"Head to the shop:\n\n**{SITE_URL}**",
+        hero=False,
+    )
+
+
+def menu_view() -> discord.ui.View:
+    return router.make_view(
+        [[{"custom_id": "kiosk:menu:products", "label": "Products", "style": discord.ButtonStyle.primary}]]
+    )
+
+
+def menu_select_view() -> discord.ui.View | None:
+    options = views.product_select_options()
+    if not options:
+        return None
+    return router.make_view(
+        [
+            [
+                {
+                    "type": "select",
+                    "custom_id": "portal:product",
+                    "placeholder": "Browse catalog…",
+                    "options": options,
+                }
+            ],
+            [{"custom_id": "kiosk:menu:back", "label": "Back", "style": discord.ButtonStyle.secondary}],
+        ]
+    )
+
+
 @router.button("kiosk:show")
 async def kiosk_show(interaction: discord.Interaction, rest: list[str]):
     topic = rest[0] if rest else ""
-    builders = {"howto": howto_embed, "products": products_embed, "support": support_embed}
+    if topic == "howto":
+        # Menu follow-up carries its own Products button (dropdown, no embed).
+        await interaction.response.send_message(embeds=[howto_embed()], view=menu_view(), ephemeral=True)
+        return
+    if topic == "bank":
+        # Bank = your credits: balance, redeem, top up.
+        embed, view = views.pocket_menu(interaction.user)
+        await interaction.response.send_message(embeds=[embed], view=view, ephemeral=True)
+        return
+    builders = {"site": site_embed, "support": support_embed}
     build = builders.get(topic)
     if build is None:
         await interaction.response.send_message("That button is stale — ask staff to re-post the kiosk.", ephemeral=True)
         return
     # Private follow-up: only the clicker sees it, so balances and
-    # activity stay out of the channel. Banner only - no gif here.
-    await interaction.response.send_message(embeds=[build()], files=[embeds.banner_file()], ephemeral=True)
+    # activity stay out of the channel. No files - plain embed, no images.
+    await interaction.response.send_message(embeds=[build()], ephemeral=True)
+
+
+@router.button("kiosk:menu:products")
+async def kiosk_menu_products(interaction: discord.Interaction, _rest: list[str]):
+    view = menu_select_view()
+    if view is None:
+        await interaction.response.send_message("The catalog is empty right now.", ephemeral=True)
+        return
+    # Same message, buttons swapped for the dropdown - no new embed.
+    await interaction.response.edit_message(view=view)
+
+
+@router.button("kiosk:menu:back")
+async def kiosk_menu_back(interaction: discord.Interaction, _rest: list[str]):
+    await interaction.response.edit_message(embeds=[howto_embed()], view=menu_view())
 
 
 def kiosk_footer() -> str | None:
@@ -129,12 +175,14 @@ class KioskCog(commands.Cog):
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
         # Raw-V2 buttons have no discord.py View tracking them, so route the
-        # kiosk: ones here. No classic view uses that prefix, so this can
-        # never double-handle an interaction a view already claimed.
+        # kiosk:show ones here. Narrowed to that prefix on purpose: the
+        # kiosk:menu: buttons live in classic views and are already
+        # dispatched by the library - touching them here would answer
+        # the same interaction twice ("already responded").
         if interaction.type is not discord.InteractionType.component:
             return
         custom_id = ((interaction.data or {}).get("custom_id") or "")
-        if not custom_id.startswith("kiosk:"):
+        if not custom_id.startswith("kiosk:show:"):
             return
         fn, rest = router._match_handler(router.BUTTONS, custom_id)
         if fn is None:
