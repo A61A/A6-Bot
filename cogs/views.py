@@ -10,7 +10,6 @@ import discord
 
 from cogs import router
 from config import embeds
-from config.products import PRODUCTS
 from config.roles import EMOJI_RESELLER, EMOJI_SHOPPER
 from lib import db
 
@@ -61,7 +60,8 @@ def pocket_menu(user: discord.User) -> tuple[discord.Embed, discord.ui.View]:
 # -------------------------------------------------------------- portal menu
 
 def _visible_products() -> list[dict]:
-    return [p for p in PRODUCTS if not p.get("hidden", False)]
+    """Live catalog from the DB (managed via /admin, seeded from config)."""
+    return db.list_products()
 
 
 def hub_home_button_view(user: discord.User) -> discord.ui.View:
@@ -103,7 +103,13 @@ def portal_menu(user: discord.User, bot: discord.Client | None = None) -> tuple[
 
 
 def product_page(user: discord.User, product: dict) -> tuple[discord.Embed, discord.ui.View]:
-    lines = [(f"**{v['label']}**", f"{v['price']} credits", True) for v in product["versions"]]
+    lines = []
+    for v in product["versions"]:
+        stock = v.get("stock")
+        price = f"{v['price']} credits"
+        if stock is not None:
+            price += " — Sold out" if stock <= 0 else f" — {stock} left"
+        lines.append((f"**{v['label']}**", price, True))
     embed = embeds.branded_embed(
         title=f"{product.get('emoji', '')} {product['label']}",
         description=product.get("desc") or "",
@@ -113,12 +119,13 @@ def product_page(user: discord.User, product: dict) -> tuple[discord.Embed, disc
     b_row = []
     for v in product["versions"]:
         owned = product.get("once", False) and db.has_purchased(user.id, product["key"])
+        sold_out = v.get("stock") is not None and v["stock"] <= 0
         b_row.append(
             {
                 "custom_id": f"portal:buy:{v['value']}",
                 "label": f"Buy {v['label']} — {v['price']} credits",
                 "style": discord.ButtonStyle.success,
-                "disabled": owned,
+                "disabled": owned or sold_out,
             }
         )
     rows.append(b_row[:5])

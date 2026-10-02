@@ -18,6 +18,7 @@ _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
 _conn.row_factory = sqlite3.Row
 _conn.execute("PRAGMA journal_mode = WAL")
 _conn.execute("PRAGMA foreign_keys = ON")
+print(f"[db] using {DB_PATH}")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -88,6 +89,26 @@ CREATE TABLE IF NOT EXISTS payments (
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     expires_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS products (
+    key TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    desc TEXT NOT NULL DEFAULT '',
+    emoji TEXT NOT NULL DEFAULT '',
+    coming_soon INTEGER NOT NULL DEFAULT 0,
+    hidden INTEGER NOT NULL DEFAULT 0,
+    once INTEGER NOT NULL DEFAULT 0,
+    sort INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS product_versions (
+    value TEXT PRIMARY KEY,
+    product_key TEXT NOT NULL REFERENCES products(key) ON DELETE CASCADE,
+    label TEXT NOT NULL,
+    price INTEGER NOT NULL,
+    stock INTEGER,
+    content TEXT NOT NULL DEFAULT ''
 );
 """
 
@@ -340,3 +361,202 @@ def update_payment(
     vals.append(payment_id)
     _conn.execute(f"UPDATE payments SET {', '.join(sets)} WHERE id = ?", vals)
     _conn.commit()
+
+
+# --------------------------------------------------------------------------
+# Product catalog (managed at runtime via /admin; seeded from config)
+# --------------------------------------------------------------------------
+
+def _version_slug(label: str) -> str:
+    keep = "".join(ch.lower() if ch.isalnum() else "-" for ch in label).strip("-")
+    return "-".join(p for p in keep.split("-") if p) or "standard"
+
+
+def seed_products(defaults: list[dict]) -> int:
+    """Insert config defaults only when the catalog is empty. Returns rows added."""
+    existing = _conn.execute("SELECT COUNT(*) AS n FROM products").fetchone()["n"]
+    if existing:
+        return 0
+    added = 0
+    for i, p in enumerate(defaults):
+        _conn.execute(
+            "INSERT INTO products (key, label, desc, emoji, coming_soon, hidden, once, sort)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                p["key"], p.get("label", p["key"]), p.get("desc", ""), p.get("emoji", ""),
+                int(bool(p.get("coming_soon", False))), int(bool(p.get("hidden", False))),
+                int(bool(p.get("once", False))), i,
+            ),
+        )
+        for v in p.get("versions", []):
+            _conn.execute(
+                "INSERT INTO product_versions (value, product_key, label, price, stock, content)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    v.get("value", f"{p['key']}:{_version_slug(v['label'])}"),
+                    p["key"], v["label"], int(v["price"]),
+                    v.get("stock"), v.get("content", ""),
+                ),
+            )
+            added += 1
+    _conn.commit()
+    return added
+
+
+def _row_to_product(row: sqlite3.Row) -> dict:
+    versions = _conn.execute(
+        "SELECT * FROM product_versions WHERE product_key = ? ORDER BY rowid", (row["key"],)
+    ).fetchall()
+    return {
+        "key": row["key"],
+        "label": row["label"],
+        "desc": row["desc"],
+        "emoji": row["emoji"],
+        "coming_soon": bool(row["coming_soon"]),
+        "hidden": bool(row["hidden"]),
+        "once": bool(row["once"]),
+        "versions": [
+            {
+                "label": v["label"],
+                "value": v["value"],
+                "price": v["price"],
+                "stock": v["stock"],
+                "content": v["content"],
+            }
+            for v in versions
+        ],
+    }
+
+
+def list_products(*, include_hidden: bool = False) -> list[dict]:
+    if include_hidden:
+        rows = _conn.execute("SELECT * FROM products ORDER BY sort, rowid").fetchall()
+    else:
+        rows = _conn.execute("SELECT * FROM products WHERE hidden = 0 ORDER BY sort, rowid").fetchall()
+    return [_row_to_product(r) for r in rows]
+
+
+def get_product(key: str) -> dict | None:
+    row = _conn.execute("SELECT * FROM products WHERE key = ?", (key,)).fetchone()
+    return _row_to_product(row) if row else None
+
+
+def find_version(value: str) -> tuple[dict, dict] | tuple[None, None]:
+    """Find a version by its unique value. Returns (product, version)."""
+    row = _conn.execute("SELECT * FROM product_versions WHERE value = ?", (value,)).fetchone()
+    if row is None:
+        return None, None
+    product = get_product(row["product_key"])
+    version = next((v for v in product["versions"] if v["value"] == value), None)
+    return product, version
+
+
+def add_product(key: str, label: str, desc: str = "", emoji: str = "") -> None:
+    key = key.strip().lower().replace(" ", "_")
+    if not key or get_product(key) is not None:
+        raise ValueError("That product key is taken or invalid.")
+    order = _conn.execute("SELECT COALESCE(MAX(sort), -1) + 1 AS n FROM products").fetchone()["n"]
+    _conn.execute(
+        "INSERT INTO products (key, label, desc, emoji, sort) VALUES (?, ?, ?, ?, ?)",
+        (key, label, desc, emoji, order),
+    )
+    _conn.commit()
+
+
+def update_product(key: str, **fields) -> None:
+    allowed = {"label", "desc", "emoji", "coming_soon", "hidden", "once"}
+    sets, vals = [], []
+    for name, value in fields.items():
+        if name in allowed and value is not None:
+            sets.append(f"{name} = ?")
+            vals.append(int(value) if isinstance(value, bool) else value)
+    if not sets:
+        return
+    vals.append(key)
+    cur = _conn.execute(f"UPDATE products SET {', '.join(sets)} WHERE key = ?", vals)
+    _conn.commit()
+    if cur.rowcount == 0:
+        raise ValueError("No such product.")
+
+
+def delete_product(key: str) -> None:
+    cur = _conn.execute("DELETE FROM products WHERE key = ?", (key,))
+    _conn.commit()
+    if cur.rowcount == 0:
+        raise ValueError("No such product.")
+
+
+def add_version(product_key: str, label: str, price: int, stock: int | None = None, content: str = "") -> str:
+    product = get_product(product_key)
+    if product is None:
+        raise ValueError("No such product.")
+    if any(v["label"].lower() == label.lower() for v in product["versions"]):
+        raise ValueError("That product already has a version with that label.")
+    if price < 0:
+        raise ValueError("Price can't be negative.")
+    value = f"{product_key}:{_version_slug(label)}"
+    if _conn.execute("SELECT 1 FROM product_versions WHERE value = ?", (value,)).fetchone():
+        raise ValueError("That version value already exists - pick a different label.")
+    _conn.execute(
+        "INSERT INTO product_versions (value, product_key, label, price, stock, content)"
+        " VALUES (?, ?, ?, ?, ?, ?)",
+        (value, product_key, label, int(price), stock, content),
+    )
+    _conn.commit()
+    return value
+
+
+def update_version(value: str, **fields) -> None:
+    allowed = {"label", "price", "stock", "content"}
+    sets, vals = [], []
+    for name, val in fields.items():
+        if name not in allowed:
+            continue
+        if name == "stock":
+            # Present-with-None clears to unlimited; omit the key to leave it.
+            if val is not None and int(val) < 0:
+                raise ValueError("Stock can't be negative.")
+            sets.append("stock = ?")
+            vals.append(val)
+            continue
+        if val is None:
+            continue
+        if name == "price" and int(val) < 0:
+            raise ValueError("Price can't be negative.")
+        sets.append(f"{name} = ?")
+        vals.append(val)
+    if not sets:
+        return
+    vals.append(value)
+    cur = _conn.execute(f"UPDATE product_versions SET {', '.join(sets)} WHERE value = ?", vals)
+    _conn.commit()
+    if cur.rowcount == 0:
+        raise ValueError("No such version.")
+
+
+def delete_version(value: str) -> None:
+    product, version = find_version(value)
+    if version is None:
+        raise ValueError("No such version.")
+    if len(product["versions"]) <= 1:
+        raise ValueError("A product needs at least one version - remove the product instead.")
+    _conn.execute("DELETE FROM product_versions WHERE value = ?", (value,))
+    _conn.commit()
+
+
+def take_stock(value: str) -> bool:
+    """Atomically decrement stock for one sale. Unlimited (NULL) always succeeds."""
+    cur = _conn.execute(
+        "UPDATE product_versions SET stock = stock - 1"
+        " WHERE value = ? AND (stock IS NULL OR stock > 0)",
+        (value,),
+    )
+    _conn.commit()
+    return cur.rowcount > 0
+
+
+# Seed the catalog from config on first run (no-op once products exist).
+# config/products.py imports nothing, so this can't cycle.
+from config.products import PRODUCTS as _DEFAULT_PRODUCTS  # noqa: E402
+
+seed_products(_DEFAULT_PRODUCTS)

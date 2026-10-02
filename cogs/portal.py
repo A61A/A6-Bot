@@ -7,7 +7,6 @@ from discord.ext import commands
 
 from cogs import router, views
 from config import embeds
-from config.products import find_product
 from lib import db
 
 
@@ -20,7 +19,7 @@ class PortalCog(commands.Cog):
 @router.select("portal:product")
 async def portal_product(interaction: discord.Interaction, values: list[str]):
     key = values[0]
-    product = find_product(key)
+    product = db.get_product(key)
     if product is None:
         await interaction.response.send_message("That product no longer exists.", ephemeral=True)
         return
@@ -62,12 +61,29 @@ async def portal_buy(interaction: discord.Interaction, rest: list[str]):
         await interaction.response.send_message(embeds=[embed], files=embeds.embed_files(), ephemeral=True)
         return
 
+    if version.get("stock") is not None and version["stock"] <= 0:
+        embed = embeds.branded_embed(
+            title="Sold out",
+            description="That one just ran out — check back soon or grab another version.",
+        )
+        await interaction.response.send_message(embeds=[embed], files=embeds.embed_files(), ephemeral=True)
+        return
+
     try:
         db.spend_credits(user_id, version["price"])
     except ValueError:
         embed = embeds.branded_embed(
             title="Not enough credits",
             description="Your balance is too low — top up from your Pocket.",
+        )
+        await interaction.response.send_message(embeds=[embed], files=embeds.embed_files(), ephemeral=True)
+        return
+    if not db.take_stock(version["value"]):
+        # Someone grabbed the last one mid-click - refund, don't charge.
+        db.add_credits(user_id, version["price"], "refund", f"refund:{version['value']}")
+        embed = embeds.branded_embed(
+            title="Just sold out",
+            description="Someone grabbed the last one first — your credits were refunded.",
         )
         await interaction.response.send_message(embeds=[embed], files=embeds.embed_files(), ephemeral=True)
         return
