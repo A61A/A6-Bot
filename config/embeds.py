@@ -41,8 +41,8 @@ NEUTRAL = 0x2A2D3D
 BRAND_NAME = "A6 - Custom Bot? DM Me!"
 BRAND_SHORT = os.getenv("BRAND_SHORT", "A6")
 
-BANNER_FILENAME = "banner.png"
-BANNER_PATH = os.path.join(HERE, "..", "assets", "banner.png")
+BANNER_FILENAME = "banner.gif"
+BANNER_PATH = os.path.join(HERE, "..", "assets", "banner.gif")
 
 HERO_FILENAME = "hero.gif"
 HERO_PATH = os.path.join(HERE, "..", "assets", "hero.gif")
