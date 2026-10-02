@@ -18,7 +18,7 @@ class HubCog(commands.Cog):
     async def hub(self, interaction: discord.Interaction):
         embed, view = views.hub_menu(interaction.user)
         await interaction.response.send_message(
-            embeds=[embed], view=view, files=[embeds.banner_file()], ephemeral=True
+            embeds=[embed], view=view, files=embeds.embed_files(), ephemeral=True
         )
 
     @discord.app_commands.command(name="sync", description="Staff: re-sync slash commands")

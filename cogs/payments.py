@@ -95,7 +95,7 @@ async def pay_coin(interaction: discord.Interaction, values: list[str]):
     payment = db.get_payment(created["payment_id"])
     embed = _invoice_embed(payment)
     await interaction.edit_original_response(
-        embeds=[embed], view=_invoice_view(created["payment_id"]), attachments=[]
+        embeds=[embed], view=_invoice_view(created["payment_id"]), attachments=embeds.embed_files()
     )
 
 
@@ -175,7 +175,7 @@ class PaymentsCog(commands.Cog):
         user = self.bot.get_user(int(user_id))
         if user:
             try:
-                await user.send(embeds=[embed], files=[embeds.banner_file()])
+                await user.send(embeds=[embed], files=embeds.embed_files())
             except discord.Forbidden:
                 pass
 

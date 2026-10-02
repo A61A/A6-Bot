@@ -54,7 +54,7 @@ async def open_chat_for(interaction: discord.Interaction) -> None:
         "You're now talking to **A6** • support replies right here in your DMs.\n\n"
         "Staff members can see this chat too, and you'll still talk from this DM."
     )
-    await dm.send(embeds=[await _customer_message(intro)], files=[embeds.banner_file()])
+    await dm.send(embeds=[await _customer_message(intro)], files=embeds.embed_files())
 
     if ticket_channel is not None:
         staff_intro = (
@@ -63,14 +63,14 @@ async def open_chat_for(interaction: discord.Interaction) -> None:
         )
         await ticket_channel.send(
             embeds=[await _staff_message(staff_intro)],
-            files=[embeds.banner_file()],
+            files=embeds.embed_files(),
             view=views.ticket_controls(db.get_ticket(ticket["id"])),
         )
 
     reply_text = "Chat opened. Talk to me here!"
     reply_view = views.hub_home_button_view(user)
     await interaction.response.send_message(
-        embeds=[await _customer_message(reply_text)], files=[embeds.banner_file()], view=reply_view, ephemeral=True
+        embeds=[await _customer_message(reply_text)], files=embeds.embed_files(), view=reply_view, ephemeral=True
     )
 
 
@@ -99,7 +99,7 @@ async def ticket_pingadmin(interaction: discord.Interaction, _rest: list[str]):
     await interaction.response.send_message(
         content=f"{role.mention} — a customer is waiting in this chat." if role else None,
         embeds=[embed],
-        files=[embeds.banner_file()],
+        files=embeds.embed_files(),
     )
     user = interaction.guild.get_member(int(ticket["user_id"]))
     if user:

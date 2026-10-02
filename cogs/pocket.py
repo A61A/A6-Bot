@@ -34,7 +34,7 @@ class RedeemModal(discord.ui.Modal, title="Redeem a code"):
             embed.color = embeds.SUCCESS
         else:
             embed.color = embeds.NEUTRAL
-        await interaction.response.send_message(embeds=[embed], files=[embeds.banner_file()], ephemeral=True)
+        await interaction.response.send_message(embeds=[embed], files=embeds.embed_files(), ephemeral=True)
 
 
 class PocketCog(commands.Cog):

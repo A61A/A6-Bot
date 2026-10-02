@@ -59,7 +59,7 @@ async def portal_buy(interaction: discord.Interaction, rest: list[str]):
             title="Already yours",
             description="You already own this product — no need to buy it again.",
         )
-        await interaction.response.send_message(embeds=[embed], files=[embeds.banner_file()], ephemeral=True)
+        await interaction.response.send_message(embeds=[embed], files=embeds.embed_files(), ephemeral=True)
         return
 
     try:
@@ -69,7 +69,7 @@ async def portal_buy(interaction: discord.Interaction, rest: list[str]):
             title="Not enough credits",
             description="Your balance is too low — top up from your Pocket.",
         )
-        await interaction.response.send_message(embeds=[embed], files=[embeds.banner_file()], ephemeral=True)
+        await interaction.response.send_message(embeds=[embed], files=embeds.embed_files(), ephemeral=True)
         return
     return await _finish_purchase(interaction, product, version)
 

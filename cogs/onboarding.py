@@ -51,7 +51,7 @@ class OnboardingCog(commands.Cog):
                 await welcome_ch.send(
                     content=member.mention,
                     embed=embed,
-                    files=[],
+                    files=embeds.embed_files(),
                 )
             except discord.DiscordException as err:
                 print(f"[onboarding] could not send welcome to channel: {err}")
@@ -80,7 +80,7 @@ async def role_shopper(interaction: discord.Interaction, _rest: list[str]):
         description=f"You've got the **{role.name}** role. Run **/hub** to get going.",
         color=embeds.SUCCESS,
     )
-    await interaction.response.send_message(embeds=[embed], files=[embeds.banner_file()], ephemeral=True)
+    await interaction.response.send_message(embeds=[embed], files=embeds.embed_files(), ephemeral=True)
 
 
 @router.button("role:reseller")

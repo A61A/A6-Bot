@@ -1,9 +1,21 @@
 """A6 design layer.
 
-Every embed in the bot starts from `branded_embed`, so the eyebrow, banner,
-border color, and footer stay uniform everywhere. Discord can only tint an
-embed's left border via `color=`; the violet/blue banner strip is a real
-image attached to the message and referenced as `attachment://banner.png`.
+Every embed in the bot starts from `branded_embed`, so the banner strip, the
+brand heading, the accent color and the shop footer stay uniform everywhere.
+
+Panel anatomy (mirrors the theme.js V2 panel, adapted to classic embeds):
+
+    [banner.png attachment]      thin wide image, Discord renders it on top
+    A6 ・ Title                   embed title -> brand prefix, bold + large
+    description                   optional line under the heading
+    fields                        bold name + value, inline where it suits
+    ───────────────────────       separator
+    Shop                          full-width block of links at the bottom
+    [hero.gif image]              big animated gif, bottom of the embed
+    [buttons]
+
+Discord's `-#` small-text markdown only exists in Components V2, so the
+subtle-by-default look is approximated with italics here.
 
 Button colors = meaning, kept consistent everywhere:
   primary   navigation / main action on a screen
@@ -27,8 +39,25 @@ SUCCESS = 0x3BA776
 NEUTRAL = 0x2A2D3D
 
 BRAND_NAME = "A6 - Custom Bot? DM Me!"
+BRAND_SHORT = os.getenv("BRAND_SHORT", "A6")
+
 BANNER_FILENAME = "banner.png"
 BANNER_PATH = os.path.join(HERE, "..", "assets", "banner.png")
+
+HERO_FILENAME = "hero.gif"
+HERO_PATH = os.path.join(HERE, "..", "assets", "hero.gif")
+
+# Thin rule used to separate the body from the shop block.
+RULE = "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+
+# Shop links shown in the bottom block. Empty values are dropped, so you can
+# fill in only what you have without leaving dead links on screen.
+SHOP_LINKS = {
+    "Store": os.getenv("SHOP_URL", ""),
+    "Pricing": os.getenv("SHOP_PRICING_URL", ""),
+    "Dashboard": os.getenv("SHOP_DASHBOARD_URL", ""),
+    "Support": os.getenv("SHOP_SUPPORT_URL", ""),
+}
 
 
 def banner_file() -> discord.File:
@@ -36,23 +65,82 @@ def banner_file() -> discord.File:
     return discord.File(BANNER_PATH, filename=BANNER_FILENAME)
 
 
+def hero_file() -> discord.File:
+    """Fresh handle for the big animated gif - single-use per message, like banner."""
+    return discord.File(HERO_PATH, filename=HERO_FILENAME)
+
+
+def embed_files() -> list[discord.File]:
+    """Every file a branded embed needs.
+
+    Use this as `files=` on every fresh send of a branded embed. The embed
+    references both attachments, so skipping one leaves a broken image box.
+    Message edits inherit the original attachments and don't need this, with
+    one exception: anything that passes `attachments=[]` wipes them and must
+    pass `attachments=embed_files()` instead.
+    """
+    return [banner_file(), hero_file()]
+
+
+def shop_block() -> tuple[str, str, bool] | None:
+    """The bottom 'more about the shop' field, or None when nothing is configured.
+
+    The rule rides along as the first line of the value rather than as its own
+    field: Discord rejects an embed field with an empty value, so a standalone
+    divider field would 400 and take the whole message down with it.
+    """
+    links = [f"[{name}]({url})" for name, url in SHOP_LINKS.items() if url]
+    if not links:
+        return None
+    note = os.getenv("SHOP_FOOTER_NOTE", "").strip()
+    body = "  ·  ".join(links)
+    if note:
+        body = f"{note}\n{body}"
+    return ("Shop", f"{RULE}\n{body}", False)
+
+
+def _heading(title: str) -> str:
+    return f"{BRAND_SHORT} ・ {title}"
+
+
 def branded_embed(
     title: str | None = None,
     description: str | None = None,
     fields: list[tuple[str, str, bool]] | None = None,
     color: int = VIOLET,
+    subtitle: str | None = None,
+    shop: bool = True,
+    hero: bool = True,
 ) -> discord.Embed:
-    """Build a themed embed: tinted border only.
+    """Build a themed embed: banner strip on top, brand heading, gif, shop block.
 
-    Stripped of: eyebrow, image/banner, footer.
+    Set `subtitle` for a quiet italic line under the heading, `shop=False`
+    to drop the bottom link block (e.g. on the welcome embed, which already
+    points people at /hub), and `hero=False` to drop the gif.
+
+    When `hero` is on, the send MUST include `files=embed_files()` (fresh
+    sends) or keep the original attachments (edits) - otherwise the image
+    box breaks.
     """
     embed = discord.Embed(color=color)
     if title:
-        embed.title = title
-    if description:
-        embed.description = description
+        embed.title = _heading(title)
+
+    body = description or ""
+    if subtitle:
+        body = f"{body}\n*{subtitle}*" if body else f"*{subtitle}*"
+    if body:
+        embed.description = body
+
     if fields:
         for name, value, inline in fields:
             embed.add_field(name=name, value=value, inline=inline)
-    # NO set_footer — footer stripped per request
+
+    block = shop_block() if shop else None
+    if block:
+        embed.add_field(name=block[0], value=block[1], inline=False)
+
+    if hero:
+        embed.set_image(url=f"attachment://{HERO_FILENAME}")
+
     return embed
