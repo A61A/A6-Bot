@@ -43,7 +43,7 @@ TELEGRAM_URL = os.getenv("TELEGRAM_URL", "https://t.me/a61ahub")
 
 def kiosk_buttons() -> list[dict]:
     return [
-        v2.action_button("kiosk:show:howto", "Menu", v2.PRIMARY_BUTTON),
+        v2.action_button("kiosk:show:howto", "Purchase", v2.PRIMARY_BUTTON),
         v2.action_button("kiosk:show:bank", "Bank", v2.SECONDARY_BUTTON),
         v2.action_button("kiosk:show:support", "Support", v2.SECONDARY_BUTTON),
         # Link buttons open the URL directly but Discord always renders
@@ -54,7 +54,7 @@ def kiosk_buttons() -> list[dict]:
 
 def howto_embed() -> discord.Embed:
     return embeds.branded_embed(
-        title="Menu",
+        title="Purchase",
         description=(
             "1. Run **/hub** anywhere.\n"
             "2. **Portal** — browse the catalog and spend credits.\n"
@@ -96,7 +96,8 @@ def menu_select_view() -> discord.ui.View | None:
                     "options": options,
                 }
             ],
-            [{"custom_id": "kiosk:menu:back", "label": "Back", "style": discord.ButtonStyle.secondary}],
+            [{"custom_id": "kiosk:menu:back", "label": "Back", "style": discord.ButtonStyle.secondary},
+             {"custom_id": "kiosk:menu:reseller", "label": "Become A Reseller", "style": discord.ButtonStyle.success}],
         ]
     )
 
@@ -136,6 +137,31 @@ async def kiosk_menu_products(interaction: discord.Interaction, _rest: list[str]
 @router.button("kiosk:menu:back")
 async def kiosk_menu_back(interaction: discord.Interaction, _rest: list[str]):
     await interaction.response.edit_message(embeds=[howto_embed()], view=menu_view())
+
+
+@router.button("kiosk:menu:reseller")
+async def kiosk_menu_reseller(interaction: discord.Interaction, _rest: list[str]):
+    member = interaction.user
+    if not isinstance(member, discord.Member):
+        await interaction.response.send_message("You must be in the server to get the role.", ephemeral=True)
+        return
+    role = discord.utils.get(member.guild.roles, name="Reseller") or discord.utils.find(
+        lambda r: r.name.lower() == "reseller", member.guild.roles
+    )
+    if role is None:
+        await interaction.response.send_message("Reseller isn't set up yet — ask staff.", ephemeral=True)
+        return
+    if role in member.roles:
+        await interaction.response.send_message("You already have the Reseller role!", ephemeral=True)
+        return
+    try:
+        await member.add_roles(role, reason="Kiosk reseller signup")
+    except discord.DiscordException as err:
+        await interaction.response.send_message(f"Couldn't assign that role: {err}", ephemeral=True)
+        return
+    await interaction.response.send_message(
+        f"You've got the **{role.name}** role. Run **/hub** to get going.", ephemeral=True
+    )
 
 
 def kiosk_footer() -> str | None:
