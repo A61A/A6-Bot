@@ -155,9 +155,25 @@ def build_kiosk_container() -> dict:
     )
 
 
+def build_site_container() -> dict:
+    return v2.panel(
+        title=os.getenv("SITEKIOSK_TITLE", "Website"),
+        brand=embeds.BRAND_SHORT,
+        buttons=[v2.link_button("Website", SITE_URL)],
+        banner=f"attachment://{embeds.BANNER_FILENAME}",
+        hero=f"attachment://{embeds.HERO_FILENAME}",
+        accent=embeds.VIOLET,
+    )
+
+
 async def post_kiosk(bot, channel_id: int | str) -> dict:
     """Validate then POST the kiosk panel. Returns Discord's message object."""
     return await v2.send_panel(bot, channel_id, build_kiosk_container(), files=embeds.embed_files())
+
+
+async def post_site_panel(bot, channel_id: int | str) -> dict:
+    """Validate then POST the site panel. Returns Discord's message object."""
+    return await v2.send_panel(bot, channel_id, build_site_container(), files=embeds.embed_files())
 
 
 class KioskCog(commands.Cog):
@@ -185,25 +201,43 @@ class KioskCog(commands.Cog):
             return
         await fn(interaction, rest)
 
-    @discord.app_commands.command(name="kiosk", description="Staff: (re)post the kiosk panel")
-    @discord.app_commands.describe(channel="Channel to post in (defaults to the kiosk channel)")
-    async def kiosk(self, interaction: discord.Interaction, channel: discord.TextChannel | None = None):
+    @discord.app_commands.command(name="kiosk", description="Staff: (re)post a panel")
+    @discord.app_commands.describe(
+        panel="Which panel to post",
+        channel="Channel override (defaults to that panel's channel)",
+    )
+    @discord.app_commands.choices(
+        panel=[
+            discord.app_commands.Choice(name="kiosk", value="kiosk"),
+            discord.app_commands.Choice(name="site", value="site"),
+        ]
+    )
+    async def kiosk(
+        self,
+        interaction: discord.Interaction,
+        panel: str = "kiosk",
+        channel: discord.TextChannel | None = None,
+    ):
         if not is_owner(interaction.user.id):
             await interaction.response.send_message("Only the bot owner can do that.", ephemeral=True)
             return
-        target = channel or (interaction.client.get_channel(int(CHANNELS["kiosk"])) if CHANNELS.get("kiosk") else None)
+        if panel == "site":
+            key, post, label = "site", post_site_panel, "Site panel"
+        else:
+            key, post, label = "kiosk", post_kiosk, "Kiosk"
+        target = channel or (interaction.client.get_channel(int(CHANNELS[key])) if CHANNELS.get(key) else None)
         if target is None:
             await interaction.response.send_message(
-                "No kiosk channel configured — set KIOSK_CHANNEL_ID first.", ephemeral=True
+                f"No {key} channel configured — set {key.upper()}_CHANNEL_ID first.", ephemeral=True
             )
             return
         await interaction.response.defer(ephemeral=True, thinking=True)
         try:
-            msg = await post_kiosk(interaction.client, target.id)
+            await post(interaction.client, target.id)
         except (ValueError, discord.DiscordException) as err:
-            await interaction.edit_original_response(content=f"Kiosk post failed: {err}")
+            await interaction.edit_original_response(content=f"{label} post failed: {err}")
             return
-        await interaction.edit_original_response(content=f"Kiosk posted in {target.mention}.")
+        await interaction.edit_original_response(content=f"{label} posted in {target.mention}.")
 
 
 async def setup(bot: commands.Bot):
