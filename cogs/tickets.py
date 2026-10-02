@@ -17,11 +17,11 @@ PERSISTENT_CONTROLS = [
 
 
 async def _staff_message(reply: str) -> discord.Embed:
-    return embeds.branded_embed(eyebrow="Support", title="Support Chat", description=reply, color=embeds.VIOLET)
+    return embeds.branded_embed(title="Support Chat", description=reply, color=embeds.VIOLET)
 
 
 async def _customer_message(reply: str) -> discord.Embed:
-    return embeds.branded_embed(eyebrow="A6", title="Support", description=reply, color=embeds.BLUE)
+    return embeds.branded_embed(title="Support", description=reply, color=embeds.BLUE)
 
 
 async def open_chat_for(interaction: discord.Interaction) -> None:
@@ -92,9 +92,9 @@ async def ticket_pingadmin(interaction: discord.Interaction, _rest: list[str]):
         return
     role = interaction.guild.get_role(int(INF_ROLE_ID)) if INF_ROLE_ID else None
     embed = embeds.branded_embed(
-        eyebrow="Support",
         title="Admin pinged",
         description="An admin has been notified — they'll be on shortly.",
+        color=embeds.VIOLET,
     )
     await interaction.response.send_message(
         content=f"{role.mention} — a customer is waiting in this chat." if role else None,
@@ -117,9 +117,9 @@ async def ticket_close(interaction: discord.Interaction, _rest: list[str]):
         return
     db.close_ticket(ticket["id"])
     embed = embeds.branded_embed(
-        eyebrow="Support",
         title="Chat closed",
         description="This chat has been closed and the ticket archived.",
+        color=embeds.VIOLET,
     )
     await interaction.response.edit_message(embeds=[embed], view=None)
     user = interaction.guild.get_member(int(ticket["user_id"])) if interaction.guild else None
@@ -134,7 +134,6 @@ async def ticket_close(interaction: discord.Interaction, _rest: list[str]):
 
 def _dm_prelude_embed() -> discord.Embed:
     return embeds.branded_embed(
-        eyebrow="A6",
         title="Support",
         description=(
             "Hey! This DM is how support chats with you.\n\n"

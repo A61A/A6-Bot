@@ -26,7 +26,6 @@ class RedeemModal(discord.ui.Modal, title="Redeem a code"):
         code = self.code_input.value.strip()
         ok, message, details = db.redeem_code(interaction.user.id, code)
         embed = embeds.branded_embed(
-            eyebrow="A6",
             title="Redeem a code",
             description=message,
         )

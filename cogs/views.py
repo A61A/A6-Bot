@@ -18,7 +18,6 @@ from lib import db
 
 def hub_menu(user: discord.User) -> tuple[discord.Embed, discord.ui.View]:
     embed = embeds.branded_embed(
-        eyebrow="A6",
         title="How To Use A6",
         description=(
             "Pick a button — everything opens privately, just for you.\n\n"
@@ -48,7 +47,6 @@ def hub_home_button(user: discord.User) -> dict:
 def pocket_menu(user: discord.User) -> tuple[discord.Embed, discord.ui.View]:
     credits = db.get_credits(user.id)
     embed = embeds.branded_embed(
-        eyebrow="A6",
         title="Pocket",
         description=f"Hello {user.mention}! You have **{credits} credits**.\n\nNeed more? Pick a payment method below!",
     )
@@ -73,14 +71,13 @@ def hub_home_button_view(user: discord.User) -> discord.ui.View:
 def portal_menu(user: discord.User, bot: discord.Client | None = None) -> tuple[discord.Embed, discord.ui.View]:
     products = _visible_products()
     embed = embeds.branded_embed(
-        eyebrow="A6",
         title="Portal — Catalog",
         description="Pick a product below to view it and purchase.",
     )
     options = []
     for p in products:
         if p.get("coming_soon"):
-            options.append(discord.SelectOption(label=f"{p['label']} — Soon…", value=p["key"], disabled=True))
+            options.append(discord.SelectOption(label=f"{p['label']} — Soon…", value=p["key"]))
         else:
             options.append(discord.SelectOption(label=p["label"], value=p["key"], emoji=p.get("emoji")))
     view = router.make_view(
@@ -102,7 +99,6 @@ def portal_menu(user: discord.User, bot: discord.Client | None = None) -> tuple[
 def product_page(user: discord.User, product: dict) -> tuple[discord.Embed, discord.ui.View]:
     lines = [(f"**{v['label']}**", f"{v['price']} credits", True) for v in product["versions"]]
     embed = embeds.branded_embed(
-        eyebrow="A6",
         title=f"{product.get('emoji', '')} {product['label']}",
         description=product.get("desc") or "",
         fields=lines + [("Balance", f"{db.get_credits(user.id)} credits", False)],
@@ -129,7 +125,6 @@ def product_page(user: discord.User, product: dict) -> tuple[discord.Embed, disc
 
 def buy_credits_flow(user: discord.User) -> tuple[discord.Embed, discord.ui.View]:
     embed = embeds.branded_embed(
-        eyebrow="A6",
         title="Buy Credits",
         description=(
             "Pick an amount. **$1 = 1 credit**. Pay with crypto — pick your coin and the address appears right here.\n\n"
@@ -154,7 +149,6 @@ def coin_selector(user: discord.User, amount: int) -> tuple[discord.Embed, disco
     from lib.payments import SUPPORTED_COINS
 
     embed = embeds.branded_embed(
-        eyebrow="A6",
         title="Buy Credits",
         description=f"Amount locked in: **${amount} = {amount} credits**.\n\nPick which coin to pay with.",
     )
@@ -171,10 +165,8 @@ def coin_selector(user: discord.User, amount: int) -> tuple[discord.Embed, disco
 # ------------------------------------------------------------------ tickets
 
 def ticket_controls(ticket) -> discord.ui.View:
-    ai_label = "Start the AI" if ticket and ticket["human_taken"] else "Stop the AI"
     return router.build_persistent_view(
         [
-            {"custom_id": "ticket:ai", "label": ai_label, "style": discord.ButtonStyle.secondary},
             {"custom_id": "ticket:pingadmin", "label": "Ping an Admin", "style": discord.ButtonStyle.secondary},
             {"custom_id": "ticket:close", "label": "Close Chat", "style": discord.ButtonStyle.danger},
         ]

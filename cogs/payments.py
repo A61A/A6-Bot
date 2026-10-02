@@ -42,7 +42,6 @@ def _invoice_embed(payment, finished_amount: float | None = None) -> discord.Emb
         description += f"\n\nOr pay via the hosted checkout: {payment['checkout_url']}"
 
     embed = embeds.branded_embed(
-        eyebrow="A6",
         title="Buy Credits — Crypto",
         description=description,
         fields=fields,
@@ -142,7 +141,7 @@ async def pay_cancel(interaction: discord.Interaction, rest: list[str]):
         return
     db.update_payment(payment_id, status="cancelled")
     embed = embeds.branded_embed(
-        eyebrow="A6", title="Top-up cancelled", description="No problem — you can start a new one from your Pocket."
+        title="Top-up cancelled", description="No problem — you can start a new one from your Pocket."
     )
     await interaction.response.edit_message(embeds=[embed], view=None)
 
@@ -200,7 +199,6 @@ class PaymentsCog(commands.Cog):
                         db.update_payment(row["id"], status="finished")
                         balance = db.get_credits(row["user_id"])
                         embed = embeds.branded_embed(
-                            eyebrow="A6",
                             title="Top-up confirmed",
                             description=f"**{int(row['amount_usd'])} credits** are in your Pocket.",
                             fields=[("Balance", f"{balance} credits", True)],
@@ -212,7 +210,8 @@ class PaymentsCog(commands.Cog):
                         await self._notify_user(
                             row["user_id"],
                             embeds.branded_embed(
-                                eyebrow="A6", title="Top-up failed", description="The payment didn't go through."
+                                title="Top-up failed", description="The payment didn't go through.",
+                                color=embeds.NEUTRAL,
                             ),
                         )
 

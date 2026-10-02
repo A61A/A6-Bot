@@ -76,7 +76,6 @@ async def role_shopper(interaction: discord.Interaction, _rest: list[str]):
         await interaction.response.send_message(f"Couldn't assign that role: {err}", ephemeral=True)
         return
     embed = embeds.branded_embed(
-        eyebrow="A6",
         title="You're in!",
         description=f"You've got the **{role.name}** role. Run **/hub** to get going.",
         color=embeds.SUCCESS,

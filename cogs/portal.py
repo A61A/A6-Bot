@@ -56,7 +56,6 @@ async def portal_buy(interaction: discord.Interaction, rest: list[str]):
 
     if product.get("once", False) and db.has_purchased(user_id, product_key):
         embed = embeds.branded_embed(
-            eyebrow="A6",
             title="Already yours",
             description="You already own this product — no need to buy it again.",
         )
@@ -67,7 +66,6 @@ async def portal_buy(interaction: discord.Interaction, rest: list[str]):
         db.spend_credits(user_id, version["price"])
     except ValueError:
         embed = embeds.branded_embed(
-            eyebrow="A6",
             title="Not enough credits",
             description="Your balance is too low — top up from your Pocket.",
         )
@@ -81,7 +79,6 @@ async def _finish_purchase(interaction, product, version):
     db.record_purchase(user_id, product["key"], version["value"], version["price"])
 
     embed = embeds.branded_embed(
-        eyebrow="A6",
         title="Purchase complete",
         description=f"{product.get('emoji', '')} **{product['label']}** — **{version['label']}**\n\n{version.get('content', '')}",
         fields=[("Spent", f"{version['price']} credits", True), ("Balance", f"{db.get_credits(user_id)} credits", True)],
