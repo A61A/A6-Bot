@@ -45,9 +45,9 @@ def kiosk_buttons() -> list[dict]:
         v2.action_button("kiosk:show:howto", "Menu", v2.PRIMARY_BUTTON),
         v2.action_button("kiosk:show:bank", "Bank", v2.SECONDARY_BUTTON),
         v2.action_button("kiosk:show:support", "Support", v2.SECONDARY_BUTTON),
-        # Link buttons are always grey - a blue button has to be an action
-        # button, so Website answers with the clickable link instead.
-        v2.action_button("kiosk:show:site", "Website", v2.PRIMARY_BUTTON),
+        # Link buttons open the URL directly but Discord always renders
+        # them grey - blue is only for action buttons.
+        v2.link_button("Website", SITE_URL, emoji="↗️"),
     ]
 
 
@@ -71,14 +71,6 @@ def support_embed() -> discord.Embed:
             "Open **/hub**, hit **Support**, and talk in your DMs.\n\n"
             "Keep DMs from server members on or we can't reach you."
         ),
-        hero=False,
-    )
-
-
-def site_embed() -> discord.Embed:
-    return embeds.branded_embed(
-        title="Website",
-        description=f"Head to the shop:\n\n**{SITE_URL}**",
         hero=False,
     )
 
@@ -120,7 +112,7 @@ async def kiosk_show(interaction: discord.Interaction, rest: list[str]):
         embed, view = views.pocket_menu(interaction.user)
         await interaction.response.send_message(embeds=[embed], view=view, ephemeral=True)
         return
-    builders = {"site": site_embed, "support": support_embed}
+    builders = {"support": support_embed}
     build = builders.get(topic)
     if build is None:
         await interaction.response.send_message("That button is stale — ask staff to re-post the kiosk.", ephemeral=True)
