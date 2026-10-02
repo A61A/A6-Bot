@@ -38,6 +38,7 @@ def kiosk_fields() -> list[tuple[str, str]]:
 
 
 SITE_URL = os.getenv("SHOP_URL", "https://a6hub.cc")
+TELEGRAM_URL = os.getenv("TELEGRAM_URL", "https://t.me/a61ahub")
 
 
 def kiosk_buttons() -> list[dict]:
@@ -159,7 +160,13 @@ def build_site_container() -> dict:
     return v2.panel(
         title=os.getenv("SITEKIOSK_TITLE", "Website"),
         brand=embeds.BRAND_SHORT,
-        buttons=[v2.link_button("Website", SITE_URL)],
+        buttons=[
+            v2.link_button("Website", SITE_URL),
+            v2.link_button("Telegram", TELEGRAM_URL),
+            # Action button, not a link: answers privately via the existing
+            # kiosk:show dispatcher + support embed.
+            v2.action_button("kiosk:show:support", "Support", v2.SECONDARY_BUTTON),
+        ],
         banner=f"attachment://{embeds.BANNER_FILENAME}",
         hero=f"attachment://{embeds.HERO_FILENAME}",
         accent=embeds.VIOLET,
