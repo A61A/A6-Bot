@@ -113,6 +113,28 @@ def menu_select_view() -> discord.ui.View | None:
     )
 
 
+def product_detail_view() -> discord.ui.View:
+    """Placeholder dropdown shown alongside a picked product's embed."""
+    options = [
+        discord.SelectOption(label="Option 1", value="opt1"),
+        discord.SelectOption(label="Option 2", value="opt2"),
+        discord.SelectOption(label="Option 3", value="opt3"),
+    ]
+    return router.make_view(
+        [
+            [
+                {
+                    "type": "select",
+                    "custom_id": "kiosk:detail",
+                    "placeholder": "Choose an option…",
+                    "options": options,
+                }
+            ],
+            [{"custom_id": "kiosk:menu:back", "label": "Back", "style": discord.ButtonStyle.secondary}],
+        ]
+    )
+
+
 @router.button("kiosk:show")
 async def kiosk_show(interaction: discord.Interaction, rest: list[str]):
     topic = rest[0] if rest else ""
@@ -154,7 +176,13 @@ async def kiosk_catalog(interaction: discord.Interaction, values: list[str]):
         return
     _, _label, title, desc = entry
     embed = embeds.branded_embed(title=title, description=desc, hero=False)
-    await interaction.response.edit_message(embeds=[embed], view=menu_select_view())
+    await interaction.response.edit_message(embeds=[embed], view=product_detail_view())
+
+
+@router.select("kiosk:detail")
+async def kiosk_detail(interaction: discord.Interaction, values: list[str]):
+    # Placeholder — swap these out later.
+    await interaction.response.send_message(f"You picked: {values[0]} (coming soon)", ephemeral=True)
 
 
 @router.button("kiosk:menu:back")
