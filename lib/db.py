@@ -135,9 +135,13 @@ def get_credits(user_id: str) -> int:
 
 def add_credits(user_id: str, amount: int, txn_type: str = "credit", ref: str = None) -> int:
     user_id = str(user_id)
+    # The INSERT default clamps a brand-new user to >= 0; the UPDATE applies
+    # the raw delta so negative spends actually deduct (spend_credits checks
+    # the balance first, and MAX keeps the result >= 0 as a final guard).
     _conn.execute(
-        "INSERT INTO users (id, credits) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET credits = credits + ?",
-        (user_id, max(amount, 0), max(amount, 0)),
+        "INSERT INTO users (id, credits) VALUES (?, ?)"
+        " ON CONFLICT(id) DO UPDATE SET credits = MAX(credits + ?, 0)",
+        (user_id, max(amount, 0), amount),
     )
     _conn.execute(
         "INSERT INTO transactions (user_id, amount, type, ref, created_at) VALUES (?, ?, ?, ?, ?)",
@@ -373,21 +377,26 @@ def _version_slug(label: str) -> str:
 
 
 def seed_products(defaults: list[dict]) -> int:
-    """Insert config defaults only when the catalog is empty. Returns rows added."""
-    existing = _conn.execute("SELECT COUNT(*) AS n FROM products").fetchone()["n"]
-    if existing:
-        return 0
+    """Add config products whose keys are missing from the catalog.
+
+    Existing products are never modified (preserves /admin edits).
+    Returns version rows added.
+    """
     added = 0
-    for i, p in enumerate(defaults):
+    next_sort = _conn.execute("SELECT COALESCE(MAX(sort), -1) + 1 AS s FROM products").fetchone()["s"]
+    for p in defaults:
+        if _conn.execute("SELECT 1 FROM products WHERE key = ?", (p["key"],)).fetchone():
+            continue
         _conn.execute(
             "INSERT INTO products (key, label, desc, emoji, coming_soon, hidden, once, sort)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 p["key"], p.get("label", p["key"]), p.get("desc", ""), p.get("emoji", ""),
                 int(bool(p.get("coming_soon", False))), int(bool(p.get("hidden", False))),
-                int(bool(p.get("once", False))), i,
+                int(bool(p.get("once", False))), next_sort,
             ),
         )
+        next_sort += 1
         for v in p.get("versions", []):
             _conn.execute(
                 "INSERT INTO product_versions (value, product_key, label, price, stock, content)"

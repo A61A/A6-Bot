@@ -102,7 +102,14 @@ def portal_menu(user: discord.User, bot: discord.Client | None = None) -> tuple[
     return embed, view
 
 
-def product_page(user: discord.User, product: dict) -> tuple[discord.Embed, discord.ui.View]:
+def product_page(
+    user: discord.User,
+    product: dict,
+    *,
+    hero: bool = True,
+    back: dict | None = None,
+    buy_prefix: str = "portal:buy",
+) -> tuple[discord.Embed, discord.ui.View]:
     lines = []
     for v in product["versions"]:
         stock = v.get("stock")
@@ -114,6 +121,7 @@ def product_page(user: discord.User, product: dict) -> tuple[discord.Embed, disc
         title=f"{product.get('emoji', '')} {product['label']}",
         description=product.get("desc") or "",
         fields=lines + [("Balance", f"{db.get_credits(user.id)} credits", False)],
+        hero=hero,
     )
     rows = []
     b_row = []
@@ -122,14 +130,14 @@ def product_page(user: discord.User, product: dict) -> tuple[discord.Embed, disc
         sold_out = v.get("stock") is not None and v["stock"] <= 0
         b_row.append(
             {
-                "custom_id": f"portal:buy:{v['value']}",
+                "custom_id": f"{buy_prefix}:{v['value']}",
                 "label": f"Buy {v['label']} — {v['price']} credits",
                 "style": discord.ButtonStyle.success,
                 "disabled": owned or sold_out,
             }
         )
     rows.append(b_row[:5])
-    rows.append([hub_home_button(user)])
+    rows.append([back if back is not None else hub_home_button(user)])
     view = router.make_view(rows)
     return embed, view
 

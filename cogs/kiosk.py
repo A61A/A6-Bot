@@ -11,11 +11,11 @@ import os
 import discord
 from discord.ext import commands
 
-from cogs import router, views
+from cogs import portal, router, views
 from config import embeds
 from config.channels import CHANNELS
 from config.roles import is_owner
-from lib import v2
+from lib import db, v2
 
 
 def kiosk_title() -> str:
@@ -76,14 +76,15 @@ def support_embed() -> discord.Embed:
     )
 
 
-# (value, label, embed title, embed description) shown when an option is picked.
-KIOSK_CATALOG: list[tuple[str, str, str, str]] = [
-    ("suppliers", "Suppliers", "Suppliers", "Fresh supplier accounts ready to go. Grab yours and start selling today."),
-    ("hd_netflix", "HD Netflix", "HD Netflix", "HD viewing on your own account. Stream on up to 4 screens at once."),
-    ("tiktok_users", "TikTok Users", "TikTok Users", "Aged TikTok accounts with real engagement. Perfect for growth."),
-    ("discord_nitro", "Discord Nitro", "Discord Nitro", "Full Discord Nitro — boosted uploads, custom emoji, HD streaming."),
-    ("spotify_premium", "Spotify Premium", "Spotify Premium", "Your account, upgraded. Ad-free music and offline downloads."),
-    ("twitter_accounts", "Twitter Accounts", "Twitter Accounts", "Aged Twitter/X accounts ready for marketing and engagement."),
+# (dropdown value, dropdown label, DB product key) — the catalog the
+# kiosk Purchase flow offers. Embeds + buy buttons come from the DB product.
+KIOSK_CATALOG: list[tuple[str, str, str]] = [
+    ("suppliers", "Suppliers", "suppliers"),
+    ("hd_netflix", "HD Netflix", "netflix"),
+    ("tiktok_users", "TikTok Users", "tiktok_users"),
+    ("discord_nitro", "Discord Nitro", "discord_nitro"),
+    ("spotify_premium", "Spotify Premium", "spotify"),
+    ("twitter_accounts", "Twitter Accounts", "twitter_accounts"),
 ]
 
 
@@ -94,7 +95,7 @@ def menu_view() -> discord.ui.View:
 
 
 def menu_select_view() -> discord.ui.View | None:
-    options = [discord.SelectOption(label=label, value=value) for value, label, _, _ in KIOSK_CATALOG]
+    options = [discord.SelectOption(label=label, value=value) for value, label, _ in KIOSK_CATALOG]
     if not options:
         return None
     return router.make_view(
@@ -109,28 +110,6 @@ def menu_select_view() -> discord.ui.View | None:
             ],
             [{"custom_id": "kiosk:menu:back", "label": "Back", "style": discord.ButtonStyle.secondary},
              {"custom_id": "kiosk:menu:reseller", "label": "Become A Reseller", "style": discord.ButtonStyle.success, "disabled": True}],
-        ]
-    )
-
-
-def product_detail_view() -> discord.ui.View:
-    """Placeholder dropdown shown alongside a picked product's embed."""
-    options = [
-        discord.SelectOption(label="Option 1", value="opt1"),
-        discord.SelectOption(label="Option 2", value="opt2"),
-        discord.SelectOption(label="Option 3", value="opt3"),
-    ]
-    return router.make_view(
-        [
-            [
-                {
-                    "type": "select",
-                    "custom_id": "kiosk:detail",
-                    "placeholder": "Choose an option…",
-                    "options": options,
-                }
-            ],
-            [{"custom_id": "kiosk:menu:back", "label": "Back", "style": discord.ButtonStyle.secondary}],
         ]
     )
 
@@ -163,8 +142,9 @@ async def kiosk_menu_products(interaction: discord.Interaction, _rest: list[str]
     if view is None:
         await interaction.response.send_message("The catalog is empty right now.", ephemeral=True)
         return
-    # Same message, buttons swapped for the dropdown - no new embed.
-    await interaction.response.edit_message(view=view)
+    # Restore the Purchase instructions embed + products dropdown, so this
+    # works both from the first Products click and as Back from a product page.
+    await interaction.response.edit_message(embeds=[howto_embed()], view=view)
 
 
 @router.select("kiosk:catalog")
@@ -174,15 +154,24 @@ async def kiosk_catalog(interaction: discord.Interaction, values: list[str]):
     if entry is None:
         await interaction.response.send_message("That option is stale — pick another.", ephemeral=True)
         return
-    _, _label, title, desc = entry
-    embed = embeds.branded_embed(title=title, description=desc, hero=False)
-    await interaction.response.edit_message(embeds=[embed], view=product_detail_view())
+    product = db.get_product(entry[2])
+    if product is None or product.get("hidden") or product.get("coming_soon"):
+        await interaction.response.send_message(f"{entry[1]} isn't available right now.", ephemeral=True)
+        return
+    embed, view = views.product_page(
+        interaction.user,
+        product,
+        hero=False,
+        back={"custom_id": "kiosk:menu:products", "label": "Back to Products", "style": discord.ButtonStyle.secondary},
+        buy_prefix="kiosk:buy",
+    )
+    await interaction.response.edit_message(embeds=[embed], view=view)
 
 
-@router.select("kiosk:detail")
-async def kiosk_detail(interaction: discord.Interaction, values: list[str]):
-    # Placeholder — swap these out later.
-    await interaction.response.send_message(f"You picked: {values[0]} (coming soon)", ephemeral=True)
+@router.button("kiosk:buy")
+async def kiosk_buy(interaction: discord.Interaction, rest: list[str]):
+    back = menu_select_view() or menu_view()
+    await portal.purchase_version(interaction, rest[0], back)
 
 
 @router.button("kiosk:menu:back")

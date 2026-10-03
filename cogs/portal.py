@@ -30,9 +30,12 @@ async def portal_product(interaction: discord.Interaction, values: list[str]):
     await interaction.response.edit_message(embeds=[embed], view=view)
 
 
-@router.button("portal:buy")
-async def portal_buy(interaction: discord.Interaction, rest: list[str]):
-    version_value = rest[0]
+async def purchase_version(interaction: discord.Interaction, version_value: str, back_view: discord.ui.View):
+    """Shared purchase path for both the /hub portal and the kiosk.
+
+    `back_view` is the view shown on the Purchase-complete message so each
+    surface can send the user back to its own menu.
+    """
     # walk the visible products to find which one owns this version_value
     product = next(
         (p for p in views._visible_products() if any(v["value"] == version_value for v in p["versions"])),
@@ -87,10 +90,15 @@ async def portal_buy(interaction: discord.Interaction, rest: list[str]):
         )
         await interaction.response.send_message(embeds=[embed], files=embeds.embed_files(), ephemeral=True)
         return
-    return await _finish_purchase(interaction, product, version)
+    return await _finish_purchase(interaction, product, version, back_view)
 
 
-async def _finish_purchase(interaction, product, version):
+@router.button("portal:buy")
+async def portal_buy(interaction: discord.Interaction, rest: list[str]):
+    await purchase_version(interaction, rest[0], views.hub_home_button_view(interaction.user))
+
+
+async def _finish_purchase(interaction, product, version, back_view):
     user_id = interaction.user.id
     db.record_purchase(user_id, product["key"], version["value"], version["price"])
 
@@ -100,7 +108,25 @@ async def _finish_purchase(interaction, product, version):
         fields=[("Spent", f"{version['price']} credits", True), ("Balance", f"{db.get_credits(user_id)} credits", True)],
     )
     embed.add_field(name="Support", value="Need help? Head to the hub -> **Support**.", inline=False)
-    await interaction.response.edit_message(embeds=[embed], view=views.hub_home_button_view(interaction.user))
+    await interaction.response.edit_message(embeds=[embed], view=back_view)
+
+    # Best-effort DM delivery after the interaction is answered, so a slow
+    # DM can never blow the 3-second response window. The inline copy above
+    # already shows the content, so a closed-DM failure changes nothing —
+    # catch everything, this must never fail an already-completed purchase.
+    delivery = version.get("content", "").strip()
+    if delivery:
+        try:
+            await interaction.user.send(
+                embed=embeds.branded_embed(
+                    title=f"Delivery — {product['label']}",
+                    description=f"**{version['label']}**\n\n{delivery}",
+                    hero=False,
+                    shop=False,
+                )
+            )
+        except Exception:
+            pass
 
 
 async def setup(bot: commands.Bot):

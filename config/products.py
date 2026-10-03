@@ -70,6 +70,42 @@ PRODUCTS: list[dict] = [
             {"label": "6 Months", "value": "prime:6m", "price": 90},
         ],
     },
+    {
+        "key": "suppliers",
+        "label": "Suppliers",
+        "desc": "Fresh supplier accounts ready to go. Grab yours and start selling today.",
+        "emoji": "🤝",
+        "versions": [
+            {"label": "Standard", "value": "suppliers:standard", "price": 10, "content": "[placeholder delivery]"},
+        ],
+    },
+    {
+        "key": "tiktok_users",
+        "label": "TikTok Users",
+        "desc": "Aged TikTok accounts with real engagement. Perfect for growth.",
+        "emoji": "🎵",
+        "versions": [
+            {"label": "Standard", "value": "tiktok_users:standard", "price": 10, "content": "[placeholder delivery]"},
+        ],
+    },
+    {
+        "key": "discord_nitro",
+        "label": "Discord Nitro",
+        "desc": "Full Discord Nitro — boosted uploads, custom emoji, HD streaming.",
+        "emoji": "🎮",
+        "versions": [
+            {"label": "1 Month", "value": "discord_nitro:1m", "price": 15, "content": "[placeholder delivery]"},
+        ],
+    },
+    {
+        "key": "twitter_accounts",
+        "label": "Twitter Accounts",
+        "desc": "Aged Twitter/X accounts ready for marketing and engagement.",
+        "emoji": "🐦",
+        "versions": [
+            {"label": "Standard", "value": "twitter_accounts:standard", "price": 10, "content": "[placeholder delivery]"},
+        ],
+    },
 ]
 
 
