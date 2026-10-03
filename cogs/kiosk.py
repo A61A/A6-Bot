@@ -76,6 +76,17 @@ def support_embed() -> discord.Embed:
     )
 
 
+# (value, label, embed title, embed description) shown when an option is picked.
+KIOSK_CATALOG: list[tuple[str, str, str, str]] = [
+    ("suppliers", "Suppliers", "Suppliers", "Fresh supplier accounts ready to go. Grab yours and start selling today."),
+    ("hd_netflix", "HD Netflix", "HD Netflix", "HD viewing on your own account. Stream on up to 4 screens at once."),
+    ("tiktok_users", "TikTok Users", "TikTok Users", "Aged TikTok accounts with real engagement. Perfect for growth."),
+    ("discord_nitro", "Discord Nitro", "Discord Nitro", "Full Discord Nitro — boosted uploads, custom emoji, HD streaming."),
+    ("spotify_premium", "Spotify Premium", "Spotify Premium", "Your account, upgraded. Ad-free music and offline downloads."),
+    ("twitter_accounts", "Twitter Accounts", "Twitter Accounts", "Aged Twitter/X accounts ready for marketing and engagement."),
+]
+
+
 def menu_view() -> discord.ui.View:
     return router.make_view(
         [[{"custom_id": "kiosk:menu:products", "label": "Products", "style": discord.ButtonStyle.primary}]]
@@ -83,7 +94,7 @@ def menu_view() -> discord.ui.View:
 
 
 def menu_select_view() -> discord.ui.View | None:
-    options = views.product_select_options()
+    options = [discord.SelectOption(label=label, value=value) for value, label, _, _ in KIOSK_CATALOG]
     if not options:
         return None
     return router.make_view(
@@ -91,8 +102,8 @@ def menu_select_view() -> discord.ui.View | None:
             [
                 {
                     "type": "select",
-                    "custom_id": "portal:product",
-                    "placeholder": "Browse catalog…",
+                    "custom_id": "kiosk:catalog",
+                    "placeholder": "View Products",
                     "options": options,
                 }
             ],
@@ -132,6 +143,18 @@ async def kiosk_menu_products(interaction: discord.Interaction, _rest: list[str]
         return
     # Same message, buttons swapped for the dropdown - no new embed.
     await interaction.response.edit_message(view=view)
+
+
+@router.select("kiosk:catalog")
+async def kiosk_catalog(interaction: discord.Interaction, values: list[str]):
+    key = values[0]
+    entry = next((e for e in KIOSK_CATALOG if e[0] == key), None)
+    if entry is None:
+        await interaction.response.send_message("That option is stale — pick another.", ephemeral=True)
+        return
+    _, _label, title, desc = entry
+    embed = embeds.branded_embed(title=title, description=desc, hero=False)
+    await interaction.response.edit_message(embeds=[embed], view=menu_select_view())
 
 
 @router.button("kiosk:menu:back")
