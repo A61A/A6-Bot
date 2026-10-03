@@ -40,9 +40,8 @@ class OnboardingCog(commands.Cog):
                 site_ch = await get_channel(self.bot, "site")
                 verify_ref = verify_ch.mention if verify_ch else "**#verify**"
                 site_ref = site_ch.mention if site_ch else "**#site**"
-                # Build embed without the shop block (the "footer" links at the bottom)
+                # Header moved to footer, no title at top, gif kept.
                 embed = embeds.branded_embed(
-                    title="Welcome!",
                     description=(
                         f"Thanks for joining **{member.guild.name}**, {member.mention}!\n\n"
                         f"Head over to {verify_ref} to get verified and {site_ref} to browse the store."
@@ -50,8 +49,8 @@ class OnboardingCog(commands.Cog):
                     color=embeds.NEUTRAL,
                     shop=False,
                 )
-                # Move the header "Welcome!" to the footer, remove any default footer
-                embed.set_footer(text="Welcome!")
+                embed.title = None
+                embed.set_footer(text=f"{embeds.BRAND_SHORT} ・ Welcome!")
                 await welcome_ch.send(
                     content=member.mention,
                     embed=embed,
