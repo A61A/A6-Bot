@@ -108,7 +108,7 @@ def menu_select_view() -> discord.ui.View | None:
                 }
             ],
             [{"custom_id": "kiosk:menu:back", "label": "Back", "style": discord.ButtonStyle.secondary},
-             {"custom_id": "kiosk:menu:reseller", "label": "Become A Reseller", "style": discord.ButtonStyle.success}],
+             {"custom_id": "kiosk:menu:reseller", "label": "Become A Reseller", "style": discord.ButtonStyle.success, "disabled": True}],
         ]
     )
 
