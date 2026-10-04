@@ -40,7 +40,8 @@ class OnboardingCog(commands.Cog):
                 site_ch = await get_channel(self.bot, "site")
                 verify_ref = verify_ch.mention if verify_ch else "**#verify**"
                 site_ref = site_ch.mention if site_ch else "**#site**"
-                # Header moved to footer, no title at top, gif kept.
+                # No header strip on top: the wordless skyline (banner.gif) becomes the
+                # bottom image, replacing the old A61A / LOCAL SLUMLORD footer art.
                 embed = embeds.branded_embed(
                     description=(
                         f"Thanks for joining **{member.guild.name}**, {member.mention}!\n\n"
@@ -48,13 +49,14 @@ class OnboardingCog(commands.Cog):
                     ),
                     color=embeds.NEUTRAL,
                     shop=False,
+                    hero=False,
                 )
-                embed.title = None
+                embed.set_image(url=f"attachment://{embeds.BANNER_FILENAME}")
                 embed.set_footer(text=f"{embeds.BRAND_SHORT} ・ Welcome!")
                 await welcome_ch.send(
                     content=member.mention,
                     embed=embed,
-                    files=embeds.embed_files(),
+                    files=[embeds.banner_file()],
                 )
             except discord.DiscordException as err:
                 print(f"[onboarding] could not send welcome to channel: {err}")
