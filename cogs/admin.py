@@ -1,8 +1,14 @@
 """Store management dashboard.
 
-/admin — shows an embed with buttons for product and version management.
-All operations read straight from the DB, so changes apply instantly — no restart,
-no re-post. Stock is per version: a number, or unlimited.
+/admin — one embed with buttons. Every action is click → pick → form:
+
+  List      see the full catalog with prices and stock
+  Add       product or version via a modal form
+  Edit      pick a product/version, form comes prefilled
+  Remove    pick, then confirm
+
+All operations read straight from the DB, so changes apply instantly —
+no restart, no re-post. Stock is per version: a number, or unlimited.
 """
 
 from __future__ import annotations
@@ -10,8 +16,8 @@ from __future__ import annotations
 import discord
 from discord import app_commands
 from discord.ext import commands
-from discord.ui import View, button
 
+from cogs import router
 from config import embeds
 from config.roles import is_owner
 from lib import db
@@ -36,118 +42,582 @@ def _flags(p: dict) -> str:
     return f" [{', '.join(tags)}]" if tags else ""
 
 
+def _flags_plain(p: dict) -> str:
+    tags = []
+    if p.get("coming_soon"):
+        tags.append("soon")
+    if p.get("hidden"):
+        tags.append("hidden")
+    if p.get("once"):
+        tags.append("once")
+    return ", ".join(tags)
+
+
+def _parse_flags(raw: str) -> dict:
+    raw = raw.lower()
+    return {
+        "coming_soon": "soon" in raw,
+        "hidden": "hidden" in raw,
+        "once": "once" in raw,
+    }
+
+
 async def _guard(interaction: discord.Interaction) -> bool:
     if is_owner(interaction.user.id):
         return True
-    await interaction.response.send_message("Only the bot owner can do that.", ephemeral=True)
+    try:
+        await interaction.response.send_message("Only the bot owner can do that.", ephemeral=True)
+    except discord.DiscordException:
+        pass
     return False
 
 
-class AdminDashboardView(View):
-    """Embed + button dashboard for /admin."""
+def _modal_values(interaction: discord.Interaction) -> dict:
+    out = {}
+    for row in (interaction.data or {}).get("components", []):
+        comps = row.get("components", [row]) if isinstance(row, dict) else []
+        for comp in comps:
+            if isinstance(comp, dict) and comp.get("custom_id"):
+                out[comp["custom_id"]] = (comp.get("value") or "").strip()
+    return out
 
-    def __init__(self):
-        super().__init__(timeout=180.0)
 
-    @button(label="List Products", style=discord.ButtonStyle.primary, custom_id="admin:list_products")
-    async def list_products(self, interaction: discord.Interaction, button: discord.Button):
-        if not await _guard(interaction):
+def _parse_stock(raw: str) -> int | None:
+    raw = (raw or "").strip()
+    if not raw or raw.lower() in ("unlimited", "none", "-"):
+        return None
+    try:
+        n = int(raw)
+    except ValueError:
+        raise ValueError("Stock must be a number, or blank for unlimited.") from None
+    if n < 0:
+        raise ValueError("Stock can't be negative.")
+    return n
+
+
+def _parse_price(raw: str) -> int:
+    try:
+        n = int((raw or "").strip())
+    except ValueError:
+        raise ValueError("Price must be a whole number of credits.") from None
+    if n < 0:
+        raise ValueError("Price can't be negative.")
+    return n
+
+
+def _home_row() -> list[dict]:
+    return [{"custom_id": "admin:home", "label": "Dashboard", "style": discord.ButtonStyle.primary}]
+
+
+def _dashboard_embed() -> discord.Embed:
+    count = len(db.list_products(include_hidden=True))
+    return embeds.branded_embed(
+        title="Store Management",
+        description="Pick an action below — changes apply instantly.",
+        fields=[("Products in catalog", str(count), True)],
+        hero=False,
+        shop=False,
+    )
+
+
+def _dashboard_view() -> discord.ui.View:
+    return router.make_view(
+        [
+            [
+                {"custom_id": "admin:list", "label": "List Products", "style": discord.ButtonStyle.primary, "row": 0},
+                {"custom_id": "admin:addp", "label": "Add Product", "style": discord.ButtonStyle.success, "row": 0},
+                {"custom_id": "admin:edp", "label": "Edit Product", "style": discord.ButtonStyle.secondary, "row": 0},
+                {"custom_id": "admin:rmp", "label": "Remove Product", "style": discord.ButtonStyle.danger, "row": 0},
+                {"custom_id": "admin:home", "label": "Refresh", "style": discord.ButtonStyle.secondary, "row": 0},
+            ],
+            [
+                {"custom_id": "admin:addv", "label": "Add Version", "style": discord.ButtonStyle.success, "row": 1},
+                {"custom_id": "admin:edv", "label": "Edit Version", "style": discord.ButtonStyle.secondary, "row": 1},
+                {"custom_id": "admin:rmv", "label": "Remove Version", "style": discord.ButtonStyle.danger, "row": 1},
+            ],
+        ]
+    )
+
+
+def _result_view() -> discord.ui.View:
+    return router.make_view([_home_row()])
+
+
+async def _show(interaction: discord.Interaction, embed: discord.Embed, view: discord.ui.View) -> None:
+    """Edit the dashboard message when possible, else send ephemeral."""
+    if getattr(interaction, "message", None) is not None:
+        try:
+            await interaction.response.edit_message(embeds=[embed], view=view)
             return
-        products = db.list_products(include_hidden=True)
-        if not products:
-            await interaction.response.send_message("The catalog is empty.", ephemeral=True)
-            return
+        except discord.DiscordException:
+            pass
+    await interaction.response.send_message(embeds=[embed], view=view, ephemeral=True)
+
+
+async def _fail(interaction: discord.Interaction, msg: str) -> None:
+    embed = embeds.branded_embed(title="Something went wrong", description=msg, hero=False, shop=False)
+    await _show(interaction, embed, _result_view())
+
+
+def _product_select_rows(custom_id: str, placeholder: str) -> list[list[dict]] | None:
+    products = db.list_products(include_hidden=True)
+    if not products:
+        return None
+    options = [
+        discord.SelectOption(
+            label=p["label"][:100],
+            value=p["key"],
+            description=(p["key"] if len(p["label"]) > 25 else None),
+            emoji=p.get("emoji") or None,
+        )
+        for p in products[:25]
+    ]
+    return [
+        [{"type": "select", "custom_id": custom_id, "placeholder": placeholder, "options": options}],
+        _home_row(),
+    ]
+
+
+def _version_select_rows(product_key: str, custom_id: str, placeholder: str) -> list[list[dict]] | None:
+    p = db.get_product(product_key)
+    if p is None or not p["versions"]:
+        return None
+    options = [
+        discord.SelectOption(
+            label=f"{v['label']} — {v['price']}c"[:100],
+            value=v["value"],
+            description=_stock_text(v["stock"])[:100],
+        )
+        for v in p["versions"][:25]
+    ]
+    return [
+        [{"type": "select", "custom_id": custom_id, "placeholder": placeholder, "options": options}],
+        _home_row(),
+    ]
+
+
+def _prompt_embed(title: str, description: str) -> discord.Embed:
+    return embeds.branded_embed(title=title, description=description, hero=False, shop=False)
+
+
+# ------------------------------------------------------------------ modals
+
+def _add_product_modal() -> discord.ui.Modal:
+    m = discord.ui.Modal(title="Add Product", custom_id="admin:addp:modal")
+    m.add_item(discord.ui.TextInput(label="Key (short id)", custom_id="key", placeholder="spotify", max_length=32))
+    m.add_item(discord.ui.TextInput(label="Display name", custom_id="label", placeholder="Lifetime Spotify Premium", max_length=100))
+    m.add_item(discord.ui.TextInput(label="Standard price (credits)", custom_id="price", placeholder="10", max_length=10))
+    m.add_item(discord.ui.TextInput(label="Description", custom_id="desc", style=discord.TextStyle.paragraph, required=False, max_length=400))
+    m.add_item(discord.ui.TextInput(label="Stock (empty = unlimited)", custom_id="stock", placeholder="unlimited", required=False, max_length=12))
+    return m
+
+
+def _add_version_modal(product_key: str) -> discord.ui.Modal:
+    m = discord.ui.Modal(
+        title=f"Add version - {product_key}"[:45],
+        custom_id=f"admin:addv:modal:{product_key}",
+    )
+    m.add_item(discord.ui.TextInput(label="Version name", custom_id="label", placeholder="12 Months", max_length=100))
+    m.add_item(discord.ui.TextInput(label="Price (credits)", custom_id="price", placeholder="50", max_length=10))
+    m.add_item(discord.ui.TextInput(label="Stock (empty = unlimited)", custom_id="stock", placeholder="unlimited", required=False, max_length=12))
+    m.add_item(discord.ui.TextInput(label="Delivery text (sent to buyer's DM)", custom_id="content", style=discord.TextStyle.paragraph, required=False, max_length=1500))
+    return m
+
+
+def _edit_product_modal(p: dict) -> discord.ui.Modal:
+    m = discord.ui.Modal(title=f"Edit — {p['label']}"[:45], custom_id=f"admin:edp:modal:{p['key']}")
+    m.add_item(discord.ui.TextInput(label="Display name", custom_id="label", default=p["label"], max_length=100))
+    m.add_item(discord.ui.TextInput(label="Description", custom_id="desc", style=discord.TextStyle.paragraph, default=(p.get("desc") or "")[:400], required=False, max_length=400))
+    m.add_item(discord.ui.TextInput(label="Emoji", custom_id="emoji", default=p.get("emoji") or "", required=False, max_length=8))
+    m.add_item(discord.ui.TextInput(label="Flags (soon, hidden, once — empty = none)", custom_id="flags", default=_flags_plain(p), required=False, max_length=50))
+    return m
+
+
+def _edit_version_modal(value: str, v: dict) -> discord.ui.Modal:
+    m = discord.ui.Modal(title=f"Edit — {v['label']}"[:45], custom_id=f"admin:edv:modal:{value}")
+    m.add_item(discord.ui.TextInput(label="Version name", custom_id="label", default=v["label"], max_length=100))
+    m.add_item(discord.ui.TextInput(label="Price (credits)", custom_id="price", default=str(v["price"]), max_length=10))
+    m.add_item(discord.ui.TextInput(label="Stock (unlimited or a number)", custom_id="stock", default=("unlimited" if v["stock"] is None else str(v["stock"])), required=False, max_length=12))
+    m.add_item(discord.ui.TextInput(label="Delivery text (sent to buyer's DM)", custom_id="content", style=discord.TextStyle.paragraph, default=(v.get("content") or "")[:1500], required=False, max_length=1500))
+    return m
+
+
+# ---------------------------------------------------------------- buttons
+
+@router.button("admin:home")
+async def admin_home(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    await interaction.response.edit_message(embeds=[_dashboard_embed()], view=_dashboard_view())
+
+
+@router.button("admin:list")
+async def admin_list(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    products = db.list_products(include_hidden=True)
+    if not products:
+        embed = _prompt_embed("Catalog", "The catalog is empty.")
+    else:
         fields = []
         for p in products:
             body = "\n".join(_version_line(v) for v in p["versions"]) or "No versions."
             fields.append((f"{p.get('emoji', '')} {p['label']} (`{p['key']}`){_flags(p)}", body, False))
         embed = embeds.branded_embed(title="Catalog", fields=fields[:25], hero=False, shop=False)
-        await interaction.response.edit_message(embeds=[embed], view=self)
+    await interaction.response.edit_message(embeds=[embed], view=_dashboard_view())
 
-    @button(label="Add Product", style=discord.ButtonStyle.success, custom_id="admin:add_product")
-    async def add_product(self, interaction: discord.Interaction, button: discord.Button):
-        if not await _guard(interaction):
-            return
-        await interaction.response.send_message("Use `/admin product add` in chat to add a product.", ephemeral=True)
 
-    @button(label="Remove Product", style=discord.ButtonStyle.danger, custom_id="admin:remove_product")
-    async def remove_product(self, interaction: discord.Interaction, button: discord.Button):
-        if not await _guard(interaction):
-            return
-        await interaction.response.send_message("Use `/admin product remove` in chat to remove a product.", ephemeral=True)
+@router.button("admin:addp")
+async def admin_addp(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    await interaction.response.send_modal(_add_product_modal())
 
-    @button(label="List Versions", style=discord.ButtonStyle.primary, custom_id="admin:list_versions")
-    async def list_versions(self, interaction: discord.Interaction, button: discord.Button):
-        if not await _guard(interaction):
-            return
-        products = db.list_products(include_hidden=True)
-        if not products:
-            await interaction.response.send_message("No products to show versions for.", ephemeral=True)
-            return
-        # Show first product's versions as an example
-        p = products[0]
-        body = "\n".join(_version_line(v) for v in p["versions"]) or "No versions."
-        embed = embeds.branded_embed(
-            title=f"Versions — {p['label']} (`{p['key']}`)",
-            description=body,
-            hero=False,
-            shop=False,
+
+@router.button("admin:edp")
+async def admin_edp(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    rows = _product_select_rows("admin:edp:pick", "Pick a product to edit…")
+    if rows is None:
+        await interaction.response.edit_message(embeds=[_prompt_embed("Edit Product", "The catalog is empty.")], view=_result_view())
+        return
+    await interaction.response.edit_message(
+        embeds=[_prompt_embed("Edit Product", "Pick the product you want to edit.")], view=router.make_view(rows)
+    )
+
+
+@router.button("admin:rmp")
+async def admin_rmp(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    rows = _product_select_rows("admin:rmp:pick", "Pick a product to remove…")
+    if rows is None:
+        await interaction.response.edit_message(embeds=[_prompt_embed("Remove Product", "The catalog is empty.")], view=_result_view())
+        return
+    await interaction.response.edit_message(
+        embeds=[_prompt_embed("Remove Product", "Pick the product you want to remove.")], view=router.make_view(rows)
+    )
+
+
+@router.button("admin:addv")
+async def admin_addv(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    rows = _product_select_rows("admin:addv:pick", "Pick a product to add a version to…")
+    if rows is None:
+        await interaction.response.edit_message(embeds=[_prompt_embed("Add Version", "Add a product first — the catalog is empty.")], view=_result_view())
+        return
+    await interaction.response.edit_message(
+        embeds=[_prompt_embed("Add Version", "Pick which product gets the new version.")], view=router.make_view(rows)
+    )
+
+
+@router.button("admin:edv")
+async def admin_edv(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    rows = _product_select_rows("admin:edv:prod", "Pick a product…")
+    if rows is None:
+        await interaction.response.edit_message(embeds=[_prompt_embed("Edit Version", "The catalog is empty.")], view=_result_view())
+        return
+    await interaction.response.edit_message(
+        embeds=[_prompt_embed("Edit Version", "Pick which product owns the version.")], view=router.make_view(rows)
+    )
+
+
+@router.button("admin:rmv")
+async def admin_rmv(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    rows = _product_select_rows("admin:rmv:prod", "Pick a product…")
+    if rows is None:
+        await interaction.response.edit_message(embeds=[_prompt_embed("Remove Version", "The catalog is empty.")], view=_result_view())
+        return
+    await interaction.response.edit_message(
+        embeds=[_prompt_embed("Remove Version", "Pick which product owns the version.")], view=router.make_view(rows)
+    )
+
+
+@router.button("admin:rmp:go")
+async def admin_rmp_go(interaction: discord.Interaction, rest: list[str]):
+    if not await _guard(interaction):
+        return
+    key = ":".join(rest)
+    try:
+        db.delete_product(key)
+    except ValueError as err:
+        await _fail(interaction, str(err))
+        return
+    embed = _prompt_embed("Product removed", f"`{key}` and all its versions are gone from the catalog.")
+    await _show(interaction, embed, _result_view())
+
+
+@router.button("admin:rmv:go")
+async def admin_rmv_go(interaction: discord.Interaction, rest: list[str]):
+    if not await _guard(interaction):
+        return
+    value = ":".join(rest)
+    try:
+        db.delete_version(value)
+    except ValueError as err:
+        await _fail(interaction, str(err))
+        return
+    embed = _prompt_embed("Version removed", f"**{value}** is gone.")
+    await _show(interaction, embed, _result_view())
+
+
+# ---------------------------------------------------------------- selects
+
+@router.select("admin:edp:pick")
+async def admin_edp_pick(interaction: discord.Interaction, values: list[str]):
+    if not await _guard(interaction):
+        return
+    p = db.get_product(values[0])
+    if p is None:
+        await _fail(interaction, "That product no longer exists.")
+        return
+    await interaction.response.send_modal(_edit_product_modal(p))
+
+
+@router.select("admin:rmp:pick")
+async def admin_rmp_pick(interaction: discord.Interaction, values: list[str]):
+    if not await _guard(interaction):
+        return
+    key = values[0]
+    p = db.get_product(key)
+    if p is None:
+        await _fail(interaction, "That product no longer exists.")
+        return
+    embed = _prompt_embed(
+        "Confirm removal",
+        f"Remove **{p['label']}** (`{p['key']}`) and all {len(p['versions'])} of its versions?\n\nThis cannot be undone.",
+    )
+    view = router.make_view(
+        [
+            [
+                {"custom_id": f"admin:rmp:go:{key}", "label": "Remove", "style": discord.ButtonStyle.danger},
+                {"custom_id": "admin:home", "label": "Cancel", "style": discord.ButtonStyle.secondary},
+            ]
+        ]
+    )
+    await interaction.response.edit_message(embeds=[embed], view=view)
+
+
+@router.select("admin:addv:pick")
+async def admin_addv_pick(interaction: discord.Interaction, values: list[str]):
+    if not await _guard(interaction):
+        return
+    key = values[0]
+    if db.get_product(key) is None:
+        await _fail(interaction, "That product no longer exists.")
+        return
+    await interaction.response.send_modal(_add_version_modal(key))
+
+
+@router.select("admin:edv:prod")
+async def admin_edv_prod(interaction: discord.Interaction, values: list[str]):
+    if not await _guard(interaction):
+        return
+    key = values[0]
+    rows = _version_select_rows(key, "admin:edv:ver", "Pick a version to edit…")
+    if rows is None:
+        await _fail(interaction, f"`{key}` has no versions.")
+        return
+    p = db.get_product(key)
+    embed = _prompt_embed("Edit Version", f"Pick a version of **{p['label']}**.")
+    await interaction.response.edit_message(embeds=[embed], view=router.make_view(rows))
+
+
+@router.select("admin:edv:ver")
+async def admin_edv_ver(interaction: discord.Interaction, values: list[str]):
+    if not await _guard(interaction):
+        return
+    value = values[0]
+    _p, v = db.find_version(value)
+    if v is None:
+        await _fail(interaction, "That version no longer exists.")
+        return
+    await interaction.response.send_modal(_edit_version_modal(value, v))
+
+
+@router.select("admin:rmv:prod")
+async def admin_rmv_prod(interaction: discord.Interaction, values: list[str]):
+    if not await _guard(interaction):
+        return
+    key = values[0]
+    rows = _version_select_rows(key, "admin:rmv:ver", "Pick a version to remove…")
+    if rows is None:
+        await _fail(interaction, f"`{key}` has no versions.")
+        return
+    p = db.get_product(key)
+    embed = _prompt_embed("Remove Version", f"Pick a version of **{p['label']}** to remove.")
+    await interaction.response.edit_message(embeds=[embed], view=router.make_view(rows))
+
+
+@router.select("admin:rmv:ver")
+async def admin_rmv_ver(interaction: discord.Interaction, values: list[str]):
+    if not await _guard(interaction):
+        return
+    value = values[0]
+    _p, v = db.find_version(value)
+    if v is None:
+        await _fail(interaction, "That version no longer exists.")
+        return
+    embed = _prompt_embed(
+        "Confirm removal",
+        f"Remove **{v['label']}** ({v['price']} credits, {_stock_text(v['stock'])})?\n\nThis cannot be undone.",
+    )
+    view = router.make_view(
+        [
+            [
+                {"custom_id": f"admin:rmv:go:{value}", "label": "Remove", "style": discord.ButtonStyle.danger},
+                {"custom_id": "admin:home", "label": "Cancel", "style": discord.ButtonStyle.secondary},
+            ]
+        ]
+    )
+    await interaction.response.edit_message(embeds=[embed], view=view)
+
+
+# ---------------------------------------------------------------- modals
+
+@router.modal("admin:addp:modal")
+async def admin_addp_modal(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    v = _modal_values(interaction)
+    try:
+        price = _parse_price(v.get("price", ""))
+        stock = _parse_stock(v.get("stock", ""))
+    except ValueError as err:
+        await _fail(interaction, str(err))
+        return
+    key = (v.get("key") or "").strip().lower().replace(" ", "_")
+    label = (v.get("label") or "").strip()
+    if not key or not label:
+        await _fail(interaction, "Key and display name are required.")
+        return
+    try:
+        db.add_product(key, label, v.get("desc", ""), "")
+        db.add_version(key, "Standard", price, stock, content="")
+    except ValueError as err:
+        await _fail(interaction, str(err))
+        return
+    embed = _prompt_embed(
+        "Product added",
+        f"**{label}** (`{key}`) with **Standard** — {price} credits ({_stock_text(stock)}).",
+    )
+    await _show(interaction, embed, _result_view())
+
+
+@router.modal("admin:addv:modal")
+async def admin_addv_modal(interaction: discord.Interaction, rest: list[str]):
+    if not await _guard(interaction):
+        return
+    key = ":".join(rest)
+    v = _modal_values(interaction)
+    try:
+        price = _parse_price(v.get("price", ""))
+        stock = _parse_stock(v.get("stock", ""))
+    except ValueError as err:
+        await _fail(interaction, str(err))
+        return
+    label = (v.get("label") or "").strip()
+    if not label:
+        await _fail(interaction, "Version name is required.")
+        return
+    try:
+        db.add_version(key, label, price, stock, content=v.get("content", ""))
+    except ValueError as err:
+        await _fail(interaction, str(err))
+        return
+    embed = _prompt_embed(
+        "Version added",
+        f"**{label}** on `{key}` — {price} credits ({_stock_text(stock)}).",
+    )
+    await _show(interaction, embed, _result_view())
+
+
+@router.modal("admin:edp:modal")
+async def admin_edp_modal(interaction: discord.Interaction, rest: list[str]):
+    if not await _guard(interaction):
+        return
+    key = ":".join(rest)
+    v = _modal_values(interaction)
+    try:
+        db.update_product(
+            key,
+            label=(v.get("label") or "").strip(),
+            desc=v.get("desc", ""),
+            emoji=v.get("emoji", ""),
+            **_parse_flags(v.get("flags", "")),
         )
-        await interaction.response.edit_message(embeds=[embed], view=self)
+    except ValueError as err:
+        await _fail(interaction, str(err))
+        return
+    p = db.get_product(key)
+    embed = _prompt_embed("Product updated", f"**{p['label']}** (`{p['key']}`){_flags(p)}")
+    await _show(interaction, embed, _result_view())
 
-    @button(label="Add Version", style=discord.ButtonStyle.success, custom_id="admin:add_version")
-    async def add_version(self, interaction: discord.Interaction, button: discord.Button):
-        if not await _guard(interaction):
-            return
-        await interaction.response.send_message("Use `/admin version add` in chat to add a version.", ephemeral=True)
 
-    @button(label="Remove Version", style=discord.ButtonStyle.danger, custom_id="admin:remove_version")
-    async def remove_version(self, interaction: discord.Interaction, button: discord.Button):
-        if not await _guard(interaction):
-            return
-        await interaction.response.send_message("Use `/admin version remove` in chat to remove a version.", ephemeral=True)
-
-    @button(label="Check Stock", style=discord.ButtonStyle.secondary, custom_id="admin:check_stock")
-    async def check_stock(self, interaction: discord.Interaction, button: discord.Button):
-        if not await _guard(interaction):
-            return
-        products = db.list_products(include_hidden=True)
-        if not products:
-            await interaction.response.send_message("The catalog is empty.", ephemeral=True)
-            return
-        fields = []
-        for p in products[:5]:
-            vs = "\n".join(_version_line(v) for v in p["versions"])
-            fields.append((f"{p.get('emoji', '')} {p['label']}", vs, False))
-        embed = embeds.branded_embed(title="Stock Overview", fields=fields, hero=False, shop=False)
-        await interaction.response.edit_message(embeds=[embed], view=self)
+@router.modal("admin:edv:modal")
+async def admin_edv_modal(interaction: discord.Interaction, rest: list[str]):
+    if not await _guard(interaction):
+        return
+    value = ":".join(rest)
+    v = _modal_values(interaction)
+    try:
+        price = _parse_price(v.get("price", ""))
+        stock = _parse_stock(v.get("stock", ""))
+    except ValueError as err:
+        await _fail(interaction, str(err))
+        return
+    label = (v.get("label") or "").strip()
+    if not label:
+        await _fail(interaction, "Version name is required.")
+        return
+    try:
+        db.update_version(value, label=label, price=price, stock=stock, content=v.get("content", ""))
+    except ValueError as err:
+        await _fail(interaction, str(err))
+        return
+    _p, updated = db.find_version(value)
+    embed = _prompt_embed("Version updated", _version_line(updated))
+    await _show(interaction, embed, _result_view())
 
 
 class AdminCog(commands.Cog):
-    """Owner-only /admin command — dashboard embed with buttons."""
+    """Owner-only /admin — dashboard embed with buttons + modal dispatcher."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction):
+        # Modals have no discord.py View tracking them, so route admin
+        # modal submits here. Narrowed to modal_submit + the admin: prefix
+        # so kiosk/components keep flowing to their own handlers.
+        if interaction.type is not discord.InteractionType.modal_submit:
+            return
+        custom_id = ((interaction.data or {}).get("custom_id") or "")
+        if not custom_id.startswith("admin:"):
+            return
+        fn, rest = router._match_handler(router.MODALS, custom_id)
+        if fn is None:
+            try:
+                await interaction.response.send_message("That form expired — open /admin again.", ephemeral=True)
+            except discord.DiscordException:
+                pass
+            return
+        await fn(interaction, rest)
 
     @app_commands.command(name="admin", description="Store management dashboard")
     async def admin(self, interaction: discord.Interaction):
         if not await _guard(interaction):
             return
-        view = AdminDashboardView()
-        embed = embeds.branded_embed(
-            title="Store Management",
-            description="Click a button below to manage the catalog:",
-            hero=False,
-            shop=False,
+        await interaction.response.send_message(
+            embeds=[_dashboard_embed()], view=_dashboard_view(), ephemeral=True
         )
-        # Add field for quick info
-        products = db.list_products(include_hidden=True)
-        embed.add_field(
-            name="Products in catalog",
-            value=f"{len(products)} product(s) — use buttons above or `/admin product list` in chat",
-            inline=False,
-        )
-        await interaction.response.send_message(embeds=[embed], view=view, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

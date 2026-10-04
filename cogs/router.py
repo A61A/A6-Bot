@@ -58,8 +58,8 @@ def _match_handler(handlers: dict, custom_id: str):
 
 
 class RouterButton(discord.ui.Button):
-    def __init__(self, custom_id: str, label: str, style: discord.ButtonStyle = discord.ButtonStyle.secondary, emoji=None, disabled=False):
-        super().__init__(style=style, label=label, emoji=emoji, custom_id=custom_id, disabled=disabled)
+    def __init__(self, custom_id: str, label: str, style: discord.ButtonStyle = discord.ButtonStyle.secondary, emoji=None, disabled=False, row: int | None = None):
+        super().__init__(style=style, label=label, emoji=emoji, custom_id=custom_id, disabled=disabled, row=row)
 
     async def callback(self, interaction: discord.Interaction):
         fn, rest = _match_handler(BUTTONS, self.custom_id)
@@ -70,8 +70,8 @@ class RouterButton(discord.ui.Button):
 
 
 class RouterSelect(discord.ui.Select):
-    def __init__(self, custom_id: str, placeholder: str, options: list[discord.SelectOption]):
-        super().__init__(custom_id=custom_id, placeholder=placeholder, options=options)
+    def __init__(self, custom_id: str, placeholder: str, options: list[discord.SelectOption], row: int | None = None):
+        super().__init__(custom_id=custom_id, placeholder=placeholder, options=options, row=row)
 
     async def callback(self, interaction: discord.Interaction):
         fn, _rest = _match_handler(SELECTS, self.custom_id)
@@ -87,7 +87,7 @@ def make_view(rows: list[list[dict]]) -> discord.ui.View:
     for row_items in rows:
         for cfg in row_items:
             if cfg.get("type") == "select":
-                view.add_item(RouterSelect(cfg["custom_id"], cfg.get("placeholder", "Choose…"), cfg["options"]))
+                view.add_item(RouterSelect(cfg["custom_id"], cfg.get("placeholder", "Choose…"), cfg["options"], row=cfg.get("row")))
             else:
                 view.add_item(
                     RouterButton(
@@ -96,6 +96,7 @@ def make_view(rows: list[list[dict]]) -> discord.ui.View:
                         style=cfg.get("style", discord.ButtonStyle.secondary),
                         emoji=cfg.get("emoji"),
                         disabled=cfg.get("disabled", False),
+                        row=cfg.get("row"),
                     )
                 )
     return view
