@@ -95,7 +95,16 @@ def menu_view() -> discord.ui.View:
 
 
 def menu_select_view() -> discord.ui.View | None:
-    options = [discord.SelectOption(label=label, value=value) for value, label, _ in KIOSK_CATALOG]
+    options = []
+    for value, label, product_key in KIOSK_CATALOG:
+        product = db.get_product(product_key)
+        options.append(
+            discord.SelectOption(
+                label=label,
+                value=value,
+                emoji=((product.get("emoji") or None) if product else None),
+            )
+        )
     if not options:
         return None
     return router.make_view(

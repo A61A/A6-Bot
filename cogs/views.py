@@ -81,6 +81,17 @@ PRODUCT_COLORS: dict[str, int] = {
 }
 
 
+def _product_color(product: dict) -> int:
+    """Accent for a product embed: /admin colour first, then the table, then violet."""
+    try:
+        typed = embeds.parse_color(product.get("color") or "")
+    except ValueError:
+        typed = None
+    if typed is not None:
+        return typed
+    return PRODUCT_COLORS.get(product["key"], embeds.VIOLET)
+
+
 def product_select_options() -> list[discord.SelectOption]:
     """Dropdown options for the visible catalog. Shared by portal_menu and the kiosk Menu follow-up."""
     options = []
@@ -134,7 +145,7 @@ def product_page(
         title=f"{product.get('emoji', '')} {product['label']}",
         description=product.get("desc") or "",
         fields=lines + [("Balance", f"{db.get_credits(user.id)} credits", False)],
-        color=PRODUCT_COLORS.get(product["key"], embeds.VIOLET),
+        color=_product_color(product),
         hero=hero,
     )
     owned = product.get("once", False) and db.has_purchased(user.id, product["key"])

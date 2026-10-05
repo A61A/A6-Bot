@@ -13,6 +13,8 @@ no restart, no re-post. Stock is per version: a number, or unlimited.
 
 from __future__ import annotations
 
+import re
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -103,6 +105,48 @@ def _parse_price(raw: str) -> int:
     if n < 0:
         raise ValueError("Price can't be negative.")
     return n
+
+
+_MARKUP_RE = re.compile(r"^<(a)?:[^:\s<>]{1,100}:\d{5,25}>$")
+
+_EMOJI_HINT = (
+    "That doesn't look like an emoji. Paste a unicode emoji (🎧), the full "
+    "`<:name:id>` / `<a:name:id>` markup, or just the emoji ID."
+)
+
+
+def _markup_from_id(emoji_id: int, client) -> str:
+    emoji = client.get_emoji(emoji_id) if client is not None and hasattr(client, "get_emoji") else None
+    if emoji is None:
+        raise ValueError(
+            f"I can't find emoji id `{emoji_id}` — the bot may not be able to see it. "
+            "Right-click the emoji → Copy Link and paste the full `<:name:id>` markup instead."
+        )
+    return str(discord.PartialEmoji(name=emoji.name, id=emoji.id, animated=emoji.animated))
+
+
+def _normalize_emoji(raw: str, client) -> str:
+    """Accept whatever gets pasted and store it as Discord-ready markup.
+
+    Unicode (🎧) and full `<:name:id>` / `<a:name:id>` markup pass through;
+    a bare ID or `:name:` is resolved against the emojis the bot can see.
+    """
+    raw = (raw or "").strip()
+    if not raw:
+        return ""
+    if _MARKUP_RE.match(raw):
+        return raw
+    if raw.isdigit():
+        return _markup_from_id(int(raw), client)
+    if re.fullmatch(r":[^:\s]{1,100}:", raw):
+        name = raw[1:-1]
+        emoji = next((e for e in getattr(client, "emojis", []) if e.name == name), None)
+        if emoji is None:
+            raise ValueError(f"I can't find a custom emoji named `{name}` that the bot can see.")
+        return str(discord.PartialEmoji(name=emoji.name, id=emoji.id, animated=emoji.animated))
+    if raw.isascii() or len(raw) > 40 or any(ch.isspace() for ch in raw):
+        raise ValueError(_EMOJI_HINT)
+    return raw
 
 
 def _home_row() -> list[dict]:
@@ -227,8 +271,23 @@ def _add_version_modal(product_key: str) -> discord.ui.Modal:
 def _edit_product_modal(p: dict) -> discord.ui.Modal:
     m = discord.ui.Modal(title=f"Edit — {p['label']}"[:45], custom_id=f"admin:edp:modal:{p['key']}")
     m.add_item(discord.ui.TextInput(label="Display name", custom_id="label", default=p["label"], max_length=100))
-    m.add_item(discord.ui.TextInput(label="Description", custom_id="desc", style=discord.TextStyle.paragraph, default=(p.get("desc") or "")[:400], required=False, max_length=400))
-    m.add_item(discord.ui.TextInput(label="Emoji", custom_id="emoji", default=p.get("emoji") or "", required=False, max_length=8))
+    m.add_item(discord.ui.TextInput(label="Description (embed body)", custom_id="desc", style=discord.TextStyle.paragraph, default=(p.get("desc") or "")[:400], required=False, max_length=400))
+    m.add_item(discord.ui.TextInput(
+        label="Emoji (unicode / custom / ID)",
+        custom_id="emoji",
+        default=(p.get("emoji") or "")[:100],
+        placeholder="🎧  or  <a:v2_dot:1552633964085383299>",
+        required=False,
+        max_length=100,
+    ))
+    m.add_item(discord.ui.TextInput(
+        label="Color (name or hex, blank = default)",
+        custom_id="color",
+        default=(p.get("color") or "")[:100],
+        placeholder="red, pink, black, blue, green, white… or #E50914",
+        required=False,
+        max_length=100,
+    ))
     m.add_item(discord.ui.TextInput(label="Flags (soon, hidden, once — empty = none)", custom_id="flags", default=_flags_plain(p), required=False, max_length=50))
     return m
 
@@ -285,6 +344,18 @@ async def admin_edp(interaction: discord.Interaction, _rest: list[str]):
     await interaction.response.edit_message(
         embeds=[_prompt_embed("Edit Product", "Pick the product you want to edit.")], view=router.make_view(rows)
     )
+
+
+@router.button("admin:edp:open")
+async def admin_edp_open(interaction: discord.Interaction, rest: list[str]):
+    """Jump straight into a product's edit form (used by the add-product receipt)."""
+    if not await _guard(interaction):
+        return
+    p = db.get_product(":".join(rest))
+    if p is None:
+        await _fail(interaction, "That product no longer exists.")
+        return
+    await interaction.response.send_modal(_edit_product_modal(p))
 
 
 @router.button("admin:rmp")
@@ -505,9 +576,18 @@ async def admin_addp_modal(interaction: discord.Interaction, _rest: list[str]):
         return
     embed = _prompt_embed(
         "Product added",
-        f"**{label}** (`{key}`) with **Standard** — {price} credits ({_stock_text(stock)}).",
+        f"**{label}** (`{key}`) with **Standard** — {price} credits ({_stock_text(stock)}).\n\n"
+        "Use **Edit details** to give it an emoji and an embed color.",
     )
-    await _show(interaction, embed, _result_view())
+    view = router.make_view(
+        [
+            [
+                {"custom_id": f"admin:edp:open:{key}", "label": "Edit details", "style": discord.ButtonStyle.secondary},
+                *_home_row(),
+            ]
+        ]
+    )
+    await _show(interaction, embed, view)
 
 
 @router.modal("admin:addv:modal")
@@ -544,19 +624,33 @@ async def admin_edp_modal(interaction: discord.Interaction, rest: list[str]):
         return
     key = ":".join(rest)
     v = _modal_values(interaction)
+    color_raw = (v.get("color") or "").strip()
+    try:
+        emoji = _normalize_emoji(v.get("emoji", ""), getattr(interaction, "client", None))
+        embeds.parse_color(color_raw)  # validate now so a typo can't be stored
+    except ValueError as err:
+        await _fail(interaction, str(err))
+        return
     try:
         db.update_product(
             key,
             label=(v.get("label") or "").strip(),
             desc=v.get("desc", ""),
-            emoji=v.get("emoji", ""),
+            emoji=emoji,
+            color=color_raw,
             **_parse_flags(v.get("flags", "")),
         )
     except ValueError as err:
         await _fail(interaction, str(err))
         return
     p = db.get_product(key)
-    embed = _prompt_embed("Product updated", f"**{p['label']}** (`{p['key']}`){_flags(p)}")
+    embed = _prompt_embed(
+        "Product updated",
+        f"**{p['label']}** (`{p['key']}`){_flags(p)}\n\n"
+        f"Emoji: {p.get('emoji') or '—'}\n"
+        f"Color: `{p.get('color') or 'default'}`\n"
+        f"Description: {p.get('desc') or '—'}",
+    )
     await _show(interaction, embed, _result_view())
 
 

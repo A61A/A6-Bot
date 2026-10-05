@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS products (
     label TEXT NOT NULL,
     desc TEXT NOT NULL DEFAULT '',
     emoji TEXT NOT NULL DEFAULT '',
+    color TEXT NOT NULL DEFAULT '',
     coming_soon INTEGER NOT NULL DEFAULT 0,
     hidden INTEGER NOT NULL DEFAULT 0,
     once INTEGER NOT NULL DEFAULT 0,
@@ -114,6 +115,17 @@ CREATE TABLE IF NOT EXISTS product_versions (
 
 _conn.executescript(_SCHEMA)
 _conn.commit()
+
+
+def _ensure_column(table: str, column: str, ddl: str) -> None:
+    """Add a column to an already-created table (CREATE IF NOT EXISTS won't)."""
+    cols = [r[1] for r in _conn.execute(f"PRAGMA table_info({table})").fetchall()]
+    if column not in cols:
+        _conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+        _conn.commit()
+
+
+_ensure_column("products", "color", "TEXT NOT NULL DEFAULT ''")
 
 
 def get_conn() -> sqlite3.Connection:
@@ -421,6 +433,7 @@ def _row_to_product(row: sqlite3.Row) -> dict:
         "label": row["label"],
         "desc": row["desc"],
         "emoji": row["emoji"],
+        "color": row["color"],
         "coming_soon": bool(row["coming_soon"]),
         "hidden": bool(row["hidden"]),
         "once": bool(row["once"]),
@@ -460,20 +473,20 @@ def find_version(value: str) -> tuple[dict, dict] | tuple[None, None]:
     return product, version
 
 
-def add_product(key: str, label: str, desc: str = "", emoji: str = "") -> None:
+def add_product(key: str, label: str, desc: str = "", emoji: str = "", color: str = "") -> None:
     key = key.strip().lower().replace(" ", "_")
     if not key or get_product(key) is not None:
         raise ValueError("That product key is taken or invalid.")
     order = _conn.execute("SELECT COALESCE(MAX(sort), -1) + 1 AS n FROM products").fetchone()["n"]
     _conn.execute(
-        "INSERT INTO products (key, label, desc, emoji, sort) VALUES (?, ?, ?, ?, ?)",
-        (key, label, desc, emoji, order),
+        "INSERT INTO products (key, label, desc, emoji, color, sort) VALUES (?, ?, ?, ?, ?, ?)",
+        (key, label, desc, emoji, color, order),
     )
     _conn.commit()
 
 
 def update_product(key: str, **fields) -> None:
-    allowed = {"label", "desc", "emoji", "coming_soon", "hidden", "once"}
+    allowed = {"label", "desc", "emoji", "color", "coming_soon", "hidden", "once"}
     sets, vals = [], []
     for name, value in fields.items():
         if name in allowed and value is not None:

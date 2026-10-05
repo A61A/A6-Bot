@@ -27,6 +27,7 @@ Button colors = meaning, kept consistent everywhere:
 from __future__ import annotations
 
 import os
+import re
 
 import discord
 
@@ -37,6 +38,47 @@ VIOLET = 0x8B5CF6
 BLUE = 0x5B6EF5
 SUCCESS = 0x3BA776
 NEUTRAL = 0x2A2D3D
+
+# Friendly names accepted wherever a colour is typed in (the /admin edit
+# form, the seeded product colors). Hex works too: #RRGGBB / 0xRRGGBB.
+COLOR_NAMES: dict[str, int] = {
+    "red": 0xE50914,
+    "pink": 0xFF69B4,
+    "black": 0x000000,
+    "blue": 0x5865F2,
+    "green": 0x1DB954,
+    "white": 0xFFFFFF,
+    "violet": VIOLET,
+    "purple": 0x8B5CF6,
+    "orange": 0xF59E0B,
+    "yellow": 0xFACC15,
+    "cyan": 0x22D3EE,
+    "gray": 0x80848E,
+    "grey": 0x80848E,
+    "default": VIOLET,
+}
+
+
+def parse_color(raw: str) -> int | None:
+    """Turn a typed colour into an RGB int. Blank -> None (means "use default").
+
+    Accepts a name ("red"), #RRGGBB, RRGGBB or 0xRRGGBB. Raises ValueError
+    with a human message when it's neither, so the caller can surface it.
+    """
+    s = (raw or "").strip()
+    if not s:
+        return None
+    if s.lower() in COLOR_NAMES:
+        return COLOR_NAMES[s.lower()]
+    s = s.lstrip("#")
+    if s[:2].lower() == "0x":
+        s = s[2:]
+    if re.fullmatch(r"[0-9a-fA-F]{6}", s):
+        return int(s, 16)
+    raise ValueError(
+        "Color must be a name (red, pink, black, blue, green, white, violet…) "
+        "or hex like `#E50914`."
+    )
 
 BRAND_NAME = "A6 - Custom Bot? DM Me!"
 BRAND_SHORT = os.getenv("BRAND_SHORT", "A6")
