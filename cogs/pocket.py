@@ -6,7 +6,7 @@ import discord
 from discord.ext import commands
 
 from cogs import router, views
-from config import embeds
+from config import embeds, notes
 from lib import db
 
 
@@ -62,11 +62,18 @@ async def pocket_pay(interaction: discord.Interaction, values: list[str]):
         # URL set -> a direct link button; no URL -> the written instructions.
         rows.append([{"label": f"Open {pm['label']}"[:80], "url": pm["url"], "emoji": pm["emoji"] or None}])
     rows.append([{"custom_id": "pocket:back", "label": "Back to Pocket", "style": discord.ButtonStyle.secondary}])
+
+    # Manual payment -> a fresh note to paste into the payment, so staff can
+    # match it. (Crypto runs through its own invoice flow instead.)
+    note = notes.generate_note()
+    db.log_payment_note(interaction.user.id, pm["id"], pm["label"], note)
+
     details = (pm["details"] or "").strip()
     if pm["url"]:
-        description = details or f"Tap **Open {pm['label']}** to pay."
+        body = details or f"Tap **Open {pm['label']}** to pay."
     else:
-        description = details or "No instructions yet — contact staff."
+        body = details or "No instructions yet — contact staff."
+    description = f"**{notes.note_line(note)}**\n\n{body}"
     embed = embeds.branded_embed(title=pm["label"], description=description, hero=False, shop=False)
     await interaction.response.edit_message(embeds=[embed], view=router.make_view(rows))
 

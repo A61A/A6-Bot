@@ -120,6 +120,15 @@ CREATE TABLE IF NOT EXISTS payment_methods (
     details TEXT NOT NULL DEFAULT '',
     sort INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS payment_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    method_id INTEGER NOT NULL,
+    method_label TEXT NOT NULL,
+    note TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
 """
 
 _conn.executescript(_SCHEMA)
@@ -659,6 +668,38 @@ def delete_payment_method(pm_id) -> None:
     _conn.commit()
     if cur.rowcount == 0:
         raise ValueError("That payment method no longer exists.")
+
+
+# ------------------------------------------------------------ payment notes
+# One row per note handed to a customer, so staff can match an incoming
+# manual payment back to them. method_label is copied at generation time on
+# purpose: deleting a payment method must not erase the payment history.
+
+def log_payment_note(user_id, method_id, method_label: str, note: str) -> int:
+    cur = _conn.execute(
+        "INSERT INTO payment_notes (user_id, method_id, method_label, note, created_at)"
+        " VALUES (?, ?, ?, ?, ?)",
+        (str(user_id), int(method_id), str(method_label), str(note), now_ms()),
+    )
+    _conn.commit()
+    return int(cur.lastrowid)
+
+
+def recent_payment_notes(limit: int = 25) -> list[dict]:
+    rows = _conn.execute(
+        "SELECT * FROM payment_notes ORDER BY id DESC LIMIT ?", (max(int(limit), 1),)
+    ).fetchall()
+    return [
+        {
+            "id": r["id"],
+            "user_id": r["user_id"],
+            "method_id": r["method_id"],
+            "method_label": r["method_label"],
+            "note": r["note"],
+            "created_at": r["created_at"],
+        }
+        for r in rows
+    ]
 
 
 # Seed the catalog from config on first run (no-op once products exist).

@@ -7,6 +7,7 @@
   Edit      pick a product/version, form comes prefilled
   Remove    pick, then confirm
   Payments  payment methods shown under the Bank button (link or instructions)
+  Notes     the payment notes customers were told to include
 
 All operations read straight from the DB, so changes apply instantly —
 no restart, no re-post. Stock is per version: a number, or unlimited.
@@ -199,6 +200,7 @@ def _dashboard_view() -> discord.ui.View:
                 {"custom_id": "admin:addpm", "label": "Add Payment", "style": discord.ButtonStyle.success, "row": 2},
                 {"custom_id": "admin:edpm", "label": "Edit Payment", "style": discord.ButtonStyle.secondary, "row": 2},
                 {"custom_id": "admin:rmpm", "label": "Remove Payment", "style": discord.ButtonStyle.danger, "row": 2},
+                {"custom_id": "admin:notes", "label": "Recent Notes", "style": discord.ButtonStyle.primary, "row": 2},
             ],
         ]
     )
@@ -608,6 +610,29 @@ async def admin_rmpm_go(interaction: discord.Interaction, rest: list[str]):
         f"**{pm['label']}** is no longer offered under the Bank button.",
     )
     await _show(interaction, embed, _result_view())
+
+
+@router.button("admin:notes")
+async def admin_notes(interaction: discord.Interaction, _rest: list[str]):
+    """Newest-first log of the notes customers were told to paste in."""
+    if not await _guard(interaction):
+        return
+    rows = db.recent_payment_notes()
+    if not rows:
+        embed = _prompt_embed("Payment Notes", "No notes have been generated yet.")
+    else:
+        lines = [
+            f"<@{n['user_id']}> • **{n['note']}** • {n['method_label']}"
+            f" • <t:{int(n['created_at']) // 1000}:R>"
+            for n in rows[:25]
+        ]
+        embed = embeds.branded_embed(
+            title="Payment Notes",
+            description="\n\n".join(lines),
+            hero=False,
+            shop=False,
+        )
+    await interaction.response.edit_message(embeds=[embed], view=_dashboard_view())
 
 
 # ---------------------------------------------------------------- selects
