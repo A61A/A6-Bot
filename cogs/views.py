@@ -6,6 +6,8 @@ look stays consistent: violet/blue banner strip, tinted border, brand footer.
 
 from __future__ import annotations
 
+import math
+
 import discord
 
 from cogs import router
@@ -42,11 +44,19 @@ def hub_home_button(user: discord.User) -> dict:
 
 
 def payment_method_options() -> list[discord.SelectOption]:
-    """Owner-managed methods from the DB (see /admin → Add Payment)."""
+    """Owner-managed methods from the DB (see /admin → Add Payment).
+
+    Instructions belong on the payment embed. Only PayPal also gets to preview
+    them here — every other method (added now or later) reveals its
+    instructions only after it has been picked.
+    """
     options: list[discord.SelectOption] = []
     for pm in db.list_payment_methods()[:25]:
-        first_line = (pm["details"] or "").strip().splitlines()
-        description = (first_line[0] if first_line else pm["url"])[:100] or None
+        if "paypal" in pm["label"].lower():
+            first_line = (pm["details"] or "").strip().splitlines()
+            description = (first_line[0] if first_line else pm["url"])[:100] or None
+        else:
+            description = None
         options.append(
             discord.SelectOption(
                 label=pm["label"][:100],
@@ -282,23 +292,84 @@ def product_page(
 
 # ------------------------------------------------------ buy-credits (crypto)
 
+AMOUNT_PRESETS: list[int] = [5, 10, 25]
+
+
+def amount_rows(
+    *,
+    amount_id,
+    amount_label,
+    custom_id: str,
+) -> list[list[dict]]:
+    """$5/$10/$25 in pairs, with the Custom Amount button filling the last row."""
+    rows: list[list[dict]] = []
+    for i in range(0, len(AMOUNT_PRESETS), 2):
+        row = [
+            {
+                "custom_id": amount_id(a),
+                "label": amount_label(a),
+                "style": discord.ButtonStyle.secondary,
+            }
+            for a in AMOUNT_PRESETS[i : i + 2]
+        ]
+        if i + len(row) >= len(AMOUNT_PRESETS):
+            row.append(
+                {"custom_id": custom_id, "label": "Custom Amount", "style": discord.ButtonStyle.primary}
+            )
+        rows.append(row)
+    return rows
+
+
+def parse_amount(raw) -> int | None:
+    """Whole-dollar amount from the Custom Amount box, or None if unusable."""
+    try:
+        value = float(str(raw or "").strip().replace("$", "").replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(value) or value < 1 or value > 100000:
+        return None
+    return int(value)
+
+
+class CustomAmountModal(discord.ui.Modal, title="Custom amount"):
+    """Ask for any amount, then hand the parsed value to `handler(interaction, amount)`."""
+
+    amount_input = discord.ui.TextInput(
+        label="Amount in USD ($1 = 1 credit)",
+        placeholder="e.g. 75",
+        min_length=1,
+        max_length=8,
+        required=True,
+    )
+
+    def __init__(self, custom_id: str, handler):
+        super().__init__(custom_id=custom_id, timeout=300)
+        self._handler = handler
+
+    async def on_submit(self, interaction: discord.Interaction):
+        amount = parse_amount(self.amount_input.value)
+        if amount is None:
+            await interaction.response.send_message(
+                "That doesn't look like a valid amount — type a number like 25.",
+                ephemeral=True,
+            )
+            return
+        await self._handler(interaction, amount)
+
+
 def buy_credits_flow(user: discord.User) -> tuple[discord.Embed, discord.ui.View]:
     embed = embeds.branded_embed(
         title="Buy Credits",
         description=(
-            "Pick an amount. **$1 = 1 credit**. Pay with crypto — pick your coin and the address appears right here.\n\n"
+            "Pick an amount. **$1 = 1 credit**. Pay with crypto - pick your coin and the address appears right here.\n\n"
             "_Topping up with a payment provider…_"
         ),
     )
-    amounts = [5, 10, 25, 50]
-    rows = []
-    for i in range(0, len(amounts), 2):
-        rows.append(
-            [
-                {"custom_id": f"pay:amount:{a}", "label": f"${a} = {a} credits", "style": discord.ButtonStyle.secondary}
-                for a in amounts[i : i + 2]
-            ]
-        )
+    rows = amount_rows(
+        amount_id=lambda a: f"pay:amount:{a}",
+        amount_label=lambda a: f"${a} = {a} credits",
+        custom_id="pay:custom",
+    )
     rows.append([hub_home_button(user)])
     view = router.make_view(rows)
     return embed, view

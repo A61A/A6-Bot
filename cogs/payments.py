@@ -79,6 +79,17 @@ async def pay_amount(interaction: discord.Interaction, rest: list[str]):
     await interaction.response.edit_message(embeds=[embed], view=view)
 
 
+@router.button("pay:custom")
+async def pay_custom(interaction: discord.Interaction, _rest: list[str]):
+    """Custom Amount -> ask how much, then continue into the coin picker."""
+
+    async def _after(interaction: discord.Interaction, amount: int):
+        embed, view = views.coin_selector(interaction.user, amount)
+        await interaction.response.edit_message(embeds=[embed], view=view)
+
+    await interaction.response.send_modal(views.CustomAmountModal("pay:custom", _after))
+
+
 @router.select("pay:coin")
 async def pay_coin(interaction: discord.Interaction, values: list[str]):
     coin = values[0]

@@ -66,41 +66,26 @@ async def pocket_pay(interaction: discord.Interaction, values: list[str]):
         hero=False,
         shop=False,
     )
-    amounts = [5, 10, 25, 50]
-    rows: list[list[dict]] = []
-    for i in range(0, len(amounts), 2):
-        rows.append(
-            [
-                {
-                    "custom_id": f"pocket:amount:{pm['id']}:{a}",
-                    "label": f"${a}",
-                    "style": discord.ButtonStyle.secondary,
-                }
-                for a in amounts[i : i + 2]
-            ]
-        )
+    rows = views.amount_rows(
+        amount_id=lambda a: f"pocket:amount:{pm['id']}:{a}",
+        amount_label=lambda a: f"${a}",
+        custom_id=f"pocket:custom:{pm['id']}",
+    )
     rows.append([{"custom_id": "pocket:back", "label": "Back to Pocket", "style": discord.ButtonStyle.secondary}])
     await interaction.response.edit_message(embeds=[embed], view=router.make_view(rows))
 
 
-@router.button("pocket:amount")
-async def pocket_amount(interaction: discord.Interaction, rest: list[str]):
-    """Amount picked -> the payment screen: amount due, the note, where to send it."""
-    pm = db.get_payment_method(rest[0] if rest else None)
+async def _resolve_method(interaction: discord.Interaction, pm_id) -> dict | None:
+    pm = db.get_payment_method(pm_id)
     if pm is None:
         await interaction.response.send_message(
             "That payment method is no longer available — pick another one.", ephemeral=True
         )
-        return
-    try:
-        amount = int(rest[1])
-    except (IndexError, TypeError, ValueError):
-        amount = 0
-    if amount <= 0:
-        await interaction.response.send_message("Pick an amount to continue.", ephemeral=True)
-        return
+    return pm
 
-    # Fresh note per click, logged with what it's for so staff can match the payment.
+
+async def _show_topup(interaction: discord.Interaction, pm: dict, amount: int) -> None:
+    """Mint a fresh note and put up the payment screen for `amount`."""
     note = notes.generate_note()
     db.log_payment_note(
         interaction.user.id,
@@ -117,6 +102,35 @@ async def pocket_amount(interaction: discord.Interaction, rest: list[str]):
         back={"custom_id": "pocket:back", "label": "Back to Pocket", "style": discord.ButtonStyle.secondary},
     )
     await interaction.response.edit_message(embeds=[embed], view=view)
+
+
+@router.button("pocket:amount")
+async def pocket_amount(interaction: discord.Interaction, rest: list[str]):
+    """Preset amount picked -> the payment screen: amount due, the note, where to send it."""
+    pm = await _resolve_method(interaction, rest[0] if rest else None)
+    if pm is None:
+        return
+    try:
+        amount = int(rest[1])
+    except (IndexError, TypeError, ValueError):
+        amount = 0
+    if amount <= 0:
+        await interaction.response.send_message("Pick an amount to continue.", ephemeral=True)
+        return
+    await _show_topup(interaction, pm, amount)
+
+
+@router.button("pocket:custom")
+async def pocket_custom(interaction: discord.Interaction, rest: list[str]):
+    """Custom Amount -> ask how much, then show the payment screen for it."""
+    pm = await _resolve_method(interaction, rest[0] if rest else None)
+    if pm is None:
+        return
+
+    async def _after(interaction: discord.Interaction, amount: int):
+        await _show_topup(interaction, pm, amount)
+
+    await interaction.response.send_modal(views.CustomAmountModal(f"pocket:custom:{pm['id']}", _after))
 
 
 @router.button("pocket:back")
