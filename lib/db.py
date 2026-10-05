@@ -111,6 +111,15 @@ CREATE TABLE IF NOT EXISTS product_versions (
     stock INTEGER,
     content TEXT NOT NULL DEFAULT ''
 );
+
+CREATE TABLE IF NOT EXISTS payment_methods (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    label TEXT NOT NULL,
+    emoji TEXT NOT NULL DEFAULT '',
+    url TEXT NOT NULL DEFAULT '',
+    details TEXT NOT NULL DEFAULT '',
+    sort INTEGER NOT NULL DEFAULT 0
+);
 """
 
 _conn.executescript(_SCHEMA)
@@ -575,6 +584,81 @@ def take_stock(value: str) -> bool:
     )
     _conn.commit()
     return cur.rowcount > 0
+
+
+# --------------------------------------------------------- payment methods
+# Offered under the Bank (Pocket) button. A URL becomes a direct link
+# button; without one the customer gets the written instructions.
+
+def _row_to_payment(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["id"],
+        "label": row["label"],
+        "emoji": row["emoji"],
+        "url": row["url"],
+        "details": row["details"],
+    }
+
+
+def list_payment_methods() -> list[dict]:
+    rows = _conn.execute("SELECT * FROM payment_methods ORDER BY sort, rowid").fetchall()
+    return [_row_to_payment(r) for r in rows]
+
+
+def get_payment_method(pm_id) -> dict | None:
+    try:
+        pm_id = int(pm_id)
+    except (TypeError, ValueError):
+        return None
+    row = _conn.execute("SELECT * FROM payment_methods WHERE id = ?", (pm_id,)).fetchone()
+    return _row_to_payment(row) if row else None
+
+
+def add_payment_method(label: str, emoji: str = "", url: str = "", details: str = "") -> int:
+    label = (label or "").strip()
+    if not label:
+        raise ValueError("A payment method needs a name.")
+    if len(label) > 100:
+        raise ValueError("Name can't be longer than 100 characters.")
+    order = _conn.execute("SELECT COALESCE(MAX(sort), -1) + 1 AS n FROM payment_methods").fetchone()["n"]
+    cur = _conn.execute(
+        "INSERT INTO payment_methods (label, emoji, url, details, sort) VALUES (?, ?, ?, ?, ?)",
+        (label, emoji, url, details, order),
+    )
+    _conn.commit()
+    return int(cur.lastrowid)
+
+
+def update_payment_method(pm_id, **fields) -> None:
+    allowed = {"label", "emoji", "url", "details"}
+    if fields.get("label") is not None and not str(fields["label"]).strip():
+        raise ValueError("A payment method needs a name.")
+    sets, vals = [], []
+    for name, value in fields.items():
+        if name in allowed and value is not None:
+            sets.append(f"{name} = ?")
+            vals.append(value)
+    if not sets:
+        return
+    try:
+        vals.append(int(pm_id))
+    except (TypeError, ValueError):
+        raise ValueError("That payment method no longer exists.") from None
+    cur = _conn.execute(f"UPDATE payment_methods SET {', '.join(sets)} WHERE id = ?", vals)
+    _conn.commit()
+    if cur.rowcount == 0:
+        raise ValueError("That payment method no longer exists.")
+
+
+def delete_payment_method(pm_id) -> None:
+    try:
+        pm_id = int(pm_id)
+    except (TypeError, ValueError):
+        raise ValueError("That payment method no longer exists.") from None
+    cur = _conn.execute("DELETE FROM payment_methods WHERE id = ?", (pm_id,))
+    _conn.commit()
+    if cur.rowcount == 0:
+        raise ValueError("That payment method no longer exists.")
 
 
 # Seed the catalog from config on first run (no-op once products exist).

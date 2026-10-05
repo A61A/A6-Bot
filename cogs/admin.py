@@ -6,6 +6,7 @@
   Add       product or version via a modal form
   Edit      pick a product/version, form comes prefilled
   Remove    pick, then confirm
+  Payments  payment methods shown under the Bank button (link or instructions)
 
 All operations read straight from the DB, so changes apply instantly —
 no restart, no re-post. Stock is per version: a number, or unlimited.
@@ -107,6 +108,17 @@ def _parse_price(raw: str) -> int:
     return n
 
 
+def _parse_url(raw: str) -> str:
+    raw = (raw or "").strip()
+    if not raw:
+        return ""
+    if len(raw) > 512:
+        raise ValueError("That link is too long.")
+    if not re.match(r"^https?://\S+$", raw, re.I):
+        raise ValueError("Link must start with `http://` or `https://` and contain no spaces.")
+    return raw
+
+
 _MARKUP_RE = re.compile(r"^<(a)?:[^:\s<>]{1,100}:\d{5,25}>$")
 
 _EMOJI_HINT = (
@@ -155,10 +167,14 @@ def _home_row() -> list[dict]:
 
 def _dashboard_embed() -> discord.Embed:
     count = len(db.list_products(include_hidden=True))
+    payments = len(db.list_payment_methods())
     return embeds.branded_embed(
         title="Store Management",
         description="Pick an action below — changes apply instantly.",
-        fields=[("Products in catalog", str(count), True)],
+        fields=[
+            ("Products in catalog", str(count), True),
+            ("Payment methods", str(payments), True),
+        ],
         hero=False,
         shop=False,
     )
@@ -178,6 +194,11 @@ def _dashboard_view() -> discord.ui.View:
                 {"custom_id": "admin:addv", "label": "Add Version", "style": discord.ButtonStyle.success, "row": 1},
                 {"custom_id": "admin:edv", "label": "Edit Version", "style": discord.ButtonStyle.secondary, "row": 1},
                 {"custom_id": "admin:rmv", "label": "Remove Version", "style": discord.ButtonStyle.danger, "row": 1},
+            ],
+            [
+                {"custom_id": "admin:addpm", "label": "Add Payment", "style": discord.ButtonStyle.success, "row": 2},
+                {"custom_id": "admin:edpm", "label": "Edit Payment", "style": discord.ButtonStyle.secondary, "row": 2},
+                {"custom_id": "admin:rmpm", "label": "Remove Payment", "style": discord.ButtonStyle.danger, "row": 2},
             ],
         ]
     )
@@ -244,6 +265,25 @@ def _prompt_embed(title: str, description: str) -> discord.Embed:
     return embeds.branded_embed(title=title, description=description, hero=False, shop=False)
 
 
+def _payment_select_rows(custom_id: str, placeholder: str) -> list[list[dict]] | None:
+    payments = db.list_payment_methods()
+    if not payments:
+        return None
+    options = [
+        discord.SelectOption(
+            label=pm["label"][:100],
+            value=str(pm["id"]),
+            description=("link" if pm["url"] else "instructions")[:100],
+            emoji=pm["emoji"] or None,
+        )
+        for pm in payments[:25]
+    ]
+    return [
+        [{"type": "select", "custom_id": custom_id, "placeholder": placeholder, "options": options}],
+        _home_row(),
+    ]
+
+
 # ------------------------------------------------------------------ modals
 
 def _add_product_modal() -> discord.ui.Modal:
@@ -298,6 +338,65 @@ def _edit_version_modal(value: str, v: dict) -> discord.ui.Modal:
     m.add_item(discord.ui.TextInput(label="Price (credits)", custom_id="price", default=str(v["price"]), max_length=10))
     m.add_item(discord.ui.TextInput(label="Stock (unlimited or a number)", custom_id="stock", default=("unlimited" if v["stock"] is None else str(v["stock"])), required=False, max_length=12))
     m.add_item(discord.ui.TextInput(label="Delivery text (sent to buyer's DM)", custom_id="content", style=discord.TextStyle.paragraph, default=(v.get("content") or "")[:1500], required=False, max_length=1500))
+    return m
+
+
+def _add_payment_modal() -> discord.ui.Modal:
+    m = discord.ui.Modal(title="Add Payment Method", custom_id="admin:addpm:modal")
+    m.add_item(discord.ui.TextInput(label="Name", custom_id="label", placeholder="PayPal", max_length=100))
+    m.add_item(discord.ui.TextInput(
+        label="Emoji (unicode / custom / ID)",
+        custom_id="emoji",
+        placeholder="🎧  or  <a:v2_dot:1552633964085383299>",
+        required=False,
+        max_length=100,
+    ))
+    m.add_item(discord.ui.TextInput(
+        label="Link (optional — becomes an Open button)",
+        custom_id="url",
+        placeholder="https://paypal.me/yourname",
+        required=False,
+        max_length=400,
+    ))
+    m.add_item(discord.ui.TextInput(
+        label="Instructions (shown when there's no link)",
+        custom_id="details",
+        style=discord.TextStyle.paragraph,
+        placeholder="Send to $yourtag, then post the screenshot in #payments.",
+        required=False,
+        max_length=400,
+    ))
+    return m
+
+
+def _edit_payment_modal(pm: dict) -> discord.ui.Modal:
+    m = discord.ui.Modal(title=f"Edit — {pm['label']}"[:45], custom_id=f"admin:edpm:modal:{pm['id']}")
+    m.add_item(discord.ui.TextInput(label="Name", custom_id="label", default=pm["label"], max_length=100))
+    m.add_item(discord.ui.TextInput(
+        label="Emoji (unicode / custom / ID)",
+        custom_id="emoji",
+        default=(pm.get("emoji") or "")[:100],
+        placeholder="🎧  or  <a:v2_dot:1552633964085383299>",
+        required=False,
+        max_length=100,
+    ))
+    m.add_item(discord.ui.TextInput(
+        label="Link (optional — becomes an Open button)",
+        custom_id="url",
+        default=(pm.get("url") or "")[:400],
+        placeholder="https://paypal.me/yourname",
+        required=False,
+        max_length=400,
+    ))
+    m.add_item(discord.ui.TextInput(
+        label="Instructions (shown when there's no link)",
+        custom_id="details",
+        style=discord.TextStyle.paragraph,
+        default=(pm.get("details") or "")[:400],
+        placeholder="Send to $yourtag, then post the screenshot in #payments.",
+        required=False,
+        max_length=400,
+    ))
     return m
 
 
@@ -358,6 +457,18 @@ async def admin_edp_open(interaction: discord.Interaction, rest: list[str]):
     await interaction.response.send_modal(_edit_product_modal(p))
 
 
+@router.button("admin:edpm:open")
+async def admin_edpm_open(interaction: discord.Interaction, rest: list[str]):
+    """Jump straight into a payment method's edit form (from the add receipt)."""
+    if not await _guard(interaction):
+        return
+    pm = db.get_payment_method(":".join(rest))
+    if pm is None:
+        await _fail(interaction, "That payment method no longer exists.")
+        return
+    await interaction.response.send_modal(_edit_payment_modal(pm))
+
+
 @router.button("admin:rmp")
 async def admin_rmp(interaction: discord.Interaction, _rest: list[str]):
     if not await _guard(interaction):
@@ -410,6 +521,46 @@ async def admin_rmv(interaction: discord.Interaction, _rest: list[str]):
     )
 
 
+@router.button("admin:addpm")
+async def admin_addpm(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    await interaction.response.send_modal(_add_payment_modal())
+
+
+@router.button("admin:edpm")
+async def admin_edpm(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    rows = _payment_select_rows("admin:edpm:pick", "Pick a payment method to edit…")
+    if rows is None:
+        await interaction.response.edit_message(
+            embeds=[_prompt_embed("Edit Payment Method", "No payment methods yet — add one first.")], view=_result_view()
+        )
+        return
+    await interaction.response.edit_message(
+        embeds=[_prompt_embed("Edit Payment Method", "Pick the payment method you want to edit.")],
+        view=router.make_view(rows),
+    )
+
+
+@router.button("admin:rmpm")
+async def admin_rmpm(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    rows = _payment_select_rows("admin:rmpm:pick", "Pick a payment method to remove…")
+    if rows is None:
+        await interaction.response.edit_message(
+            embeds=[_prompt_embed("Remove Payment Method", "No payment methods yet — nothing to remove.")],
+            view=_result_view(),
+        )
+        return
+    await interaction.response.edit_message(
+        embeds=[_prompt_embed("Remove Payment Method", "Pick the payment method you want to remove.")],
+        view=router.make_view(rows),
+    )
+
+
 @router.button("admin:rmp:go")
 async def admin_rmp_go(interaction: discord.Interaction, rest: list[str]):
     if not await _guard(interaction):
@@ -435,6 +586,27 @@ async def admin_rmv_go(interaction: discord.Interaction, rest: list[str]):
         await _fail(interaction, str(err))
         return
     embed = _prompt_embed("Version removed", f"**{value}** is gone.")
+    await _show(interaction, embed, _result_view())
+
+
+@router.button("admin:rmpm:go")
+async def admin_rmpm_go(interaction: discord.Interaction, rest: list[str]):
+    if not await _guard(interaction):
+        return
+    pm_id = ":".join(rest)
+    pm = db.get_payment_method(pm_id)
+    if pm is None:
+        await _fail(interaction, "That payment method no longer exists.")
+        return
+    try:
+        db.delete_payment_method(pm_id)
+    except ValueError as err:
+        await _fail(interaction, str(err))
+        return
+    embed = _prompt_embed(
+        "Payment method removed",
+        f"**{pm['label']}** is no longer offered under the Bank button.",
+    )
     await _show(interaction, embed, _result_view())
 
 
@@ -543,6 +715,41 @@ async def admin_rmv_ver(interaction: discord.Interaction, values: list[str]):
         [
             [
                 {"custom_id": f"admin:rmv:go:{value}", "label": "Remove", "style": discord.ButtonStyle.danger},
+                {"custom_id": "admin:home", "label": "Cancel", "style": discord.ButtonStyle.secondary},
+            ]
+        ]
+    )
+    await interaction.response.edit_message(embeds=[embed], view=view)
+
+
+@router.select("admin:edpm:pick")
+async def admin_edpm_pick(interaction: discord.Interaction, values: list[str]):
+    if not await _guard(interaction):
+        return
+    pm = db.get_payment_method(values[0] if values else None)
+    if pm is None:
+        await _fail(interaction, "That payment method no longer exists.")
+        return
+    await interaction.response.send_modal(_edit_payment_modal(pm))
+
+
+@router.select("admin:rmpm:pick")
+async def admin_rmpm_pick(interaction: discord.Interaction, values: list[str]):
+    if not await _guard(interaction):
+        return
+    pm = db.get_payment_method(values[0] if values else None)
+    if pm is None:
+        await _fail(interaction, "That payment method no longer exists.")
+        return
+    shown = f"a link button → {pm['url']}" if pm["url"] else "your instructions"
+    embed = _prompt_embed(
+        "Confirm removal",
+        f"Remove **{pm['label']}**? Customers would lose {shown}.\n\nThis cannot be undone.",
+    )
+    view = router.make_view(
+        [
+            [
+                {"custom_id": f"admin:rmpm:go:{pm['id']}", "label": "Remove", "style": discord.ButtonStyle.danger},
                 {"custom_id": "admin:home", "label": "Cancel", "style": discord.ButtonStyle.secondary},
             ]
         ]
@@ -677,6 +884,78 @@ async def admin_edv_modal(interaction: discord.Interaction, rest: list[str]):
         return
     _p, updated = db.find_version(value)
     embed = _prompt_embed("Version updated", _version_line(updated))
+    await _show(interaction, embed, _result_view())
+
+
+@router.modal("admin:addpm:modal")
+async def admin_addpm_modal(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    v = _modal_values(interaction)
+    label = (v.get("label") or "").strip()
+    if not label:
+        await _fail(interaction, "A payment method needs a name.")
+        return
+    try:
+        emoji = _normalize_emoji(v.get("emoji", ""), getattr(interaction, "client", None))
+        url = _parse_url(v.get("url", ""))
+    except ValueError as err:
+        await _fail(interaction, str(err))
+        return
+    try:
+        pm_id = db.add_payment_method(label, emoji, url, (v.get("details") or "").strip())
+    except ValueError as err:
+        await _fail(interaction, str(err))
+        return
+    how = f"an **Open** button → {url}" if url else "your instructions"
+    embed = _prompt_embed(
+        "Payment method added",
+        f"**{label}** is now in the Bank dropdown — customers get {how}.\n\n"
+        f"Emoji: {emoji or '—'}",
+    )
+    view = router.make_view(
+        [
+            [
+                {"custom_id": f"admin:edpm:open:{pm_id}", "label": "Edit details", "style": discord.ButtonStyle.secondary},
+                *_home_row(),
+            ]
+        ]
+    )
+    await _show(interaction, embed, view)
+
+
+@router.modal("admin:edpm:modal")
+async def admin_edpm_modal(interaction: discord.Interaction, rest: list[str]):
+    if not await _guard(interaction):
+        return
+    pm_id = ":".join(rest)
+    v = _modal_values(interaction)
+    label = (v.get("label") or "").strip()
+    if not label:
+        await _fail(interaction, "A payment method needs a name.")
+        return
+    try:
+        emoji = _normalize_emoji(v.get("emoji", ""), getattr(interaction, "client", None))
+        url = _parse_url(v.get("url", ""))
+    except ValueError as err:
+        await _fail(interaction, str(err))
+        return
+    try:
+        db.update_payment_method(pm_id, label=label, emoji=emoji, url=url, details=(v.get("details") or "").strip())
+    except ValueError as err:
+        await _fail(interaction, str(err))
+        return
+    pm = db.get_payment_method(pm_id)
+    if pm is None:
+        await _fail(interaction, "That payment method no longer exists.")
+        return
+    embed = _prompt_embed(
+        "Payment method updated",
+        f"**{pm['label']}**\n\n"
+        f"Emoji: {pm['emoji'] or '—'}\n"
+        f"Link: {pm['url'] or '—'}\n"
+        f"Instructions: {pm['details'] or '—'}",
+    )
     await _show(interaction, embed, _result_view())
 
 

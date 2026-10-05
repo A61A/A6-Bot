@@ -88,6 +88,16 @@ def make_view(rows: list[list[dict]]) -> discord.ui.View:
         for cfg in row_items:
             if cfg.get("type") == "select":
                 view.add_item(RouterSelect(cfg["custom_id"], cfg.get("placeholder", "Choose…"), cfg["options"], row=cfg.get("row")))
+            elif cfg.get("url"):
+                # Plain link button: opens a URL, never routes to a handler.
+                view.add_item(
+                    discord.ui.Button(
+                        label=cfg.get("label", "…"),
+                        url=cfg["url"],
+                        emoji=cfg.get("emoji"),
+                        row=cfg.get("row"),
+                    )
+                )
             else:
                 view.add_item(
                     RouterButton(

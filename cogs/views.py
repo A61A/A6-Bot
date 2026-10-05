@@ -41,6 +41,23 @@ def hub_home_button(user: discord.User) -> dict:
     return {"custom_id": "hub:home", "label": "Back to Hub", "style": discord.ButtonStyle.secondary}
 
 
+def payment_method_options() -> list[discord.SelectOption]:
+    """Owner-managed methods from the DB (see /admin → Add Payment)."""
+    options: list[discord.SelectOption] = []
+    for pm in db.list_payment_methods()[:25]:
+        first_line = (pm["details"] or "").strip().splitlines()
+        description = (first_line[0] if first_line else pm["url"])[:100] or None
+        options.append(
+            discord.SelectOption(
+                label=pm["label"][:100],
+                value=str(pm["id"]),
+                description=description,
+                emoji=(pm["emoji"] or None),
+            )
+        )
+    return options
+
+
 # -------------------------------------------------------------- pocket menu
 
 def pocket_menu(user: discord.User) -> tuple[discord.Embed, discord.ui.View]:
@@ -53,8 +70,21 @@ def pocket_menu(user: discord.User) -> tuple[discord.Embed, discord.ui.View]:
         {"custom_id": "pocket:redeem", "label": "Redeem", "style": discord.ButtonStyle.secondary},
         {"custom_id": "pocket:buycredits", "label": "Buy Credits - Crypto", "style": discord.ButtonStyle.success},
     ]
-    view = router.make_view([row1, [hub_home_button(user)]])
-    return embed, view
+    rows: list[list[dict]] = [row1]
+    options = payment_method_options()
+    if options:
+        rows.append(
+            [
+                {
+                    "type": "select",
+                    "custom_id": "pocket:pay",
+                    "placeholder": "Pick a payment method…",
+                    "options": options,
+                }
+            ]
+        )
+    rows.append([hub_home_button(user)])
+    return embed, router.make_view(rows)
 
 
 # -------------------------------------------------------------- portal menu
