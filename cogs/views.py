@@ -65,6 +65,7 @@ def pocket_menu(user: discord.User) -> tuple[discord.Embed, discord.ui.View]:
     embed = embeds.branded_embed(
         title="Pocket",
         description=f"Hello {user.mention}! You have **{credits} credits**.\n\nNeed more? Pick a payment method below!",
+        hero=False,
     )
     row1 = [
         {"custom_id": "pocket:redeem", "label": "Redeem", "style": discord.ButtonStyle.secondary},

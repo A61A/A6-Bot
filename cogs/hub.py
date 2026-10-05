@@ -46,20 +46,21 @@ class HubCog(commands.Cog):
 @router.button("hub:home")
 async def hub_home(interaction: discord.Interaction, _rest: list[str]):
     embed, view = views.hub_menu(interaction.user)
-    # The banner attachment from the original send is kept automatically on edits.
-    await interaction.response.edit_message(embeds=[embed], view=view)
+    # Re-attach banner + hero: the Pocket screen strips them off its message.
+    await interaction.response.edit_message(embeds=[embed], view=view, attachments=embeds.embed_files())
 
 
 @router.button("hub:portal")
 async def hub_portal(interaction: discord.Interaction, _rest: list[str]):
     embed, view = views.portal_menu(interaction.user)
-    await interaction.response.edit_message(embeds=[embed], view=view)
+    await interaction.response.edit_message(embeds=[embed], view=view, attachments=embeds.embed_files())
 
 
 @router.button("hub:pocket")
 async def hub_pocket(interaction: discord.Interaction, _rest: list[str]):
     embed, view = views.pocket_menu(interaction.user)
-    await interaction.response.edit_message(embeds=[embed], view=view)
+    # Pocket is text-only: wipe the banner strip and hero so they don't show.
+    await interaction.response.edit_message(embeds=[embed], view=view, attachments=[])
 
 
 async def setup(bot: commands.Bot):

@@ -133,10 +133,8 @@ async def kiosk_show(interaction: discord.Interaction, rest: list[str]):
     if topic == "bank":
         # Bank = your credits: balance, redeem, top up.
         embed, view = views.pocket_menu(interaction.user)
-        # Fresh send, so the hero/banner attachments must ride along (edits keep them).
-        await interaction.response.send_message(
-            embeds=[embed], view=view, files=embeds.embed_files(), ephemeral=True
-        )
+        # Text-only screen (hero off, no banner attachment) - no files needed.
+        await interaction.response.send_message(embeds=[embed], view=view, ephemeral=True)
         return
     builders = {"support": support_embed}
     build = builders.get(topic)

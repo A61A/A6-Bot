@@ -81,8 +81,8 @@ async def pocket_pay(interaction: discord.Interaction, values: list[str]):
 @router.button("pocket:back")
 async def pocket_back(interaction: discord.Interaction, _rest: list[str]):
     embed, view = views.pocket_menu(interaction.user)
-    # The banner attachment from the original send is kept automatically on edits.
-    await interaction.response.edit_message(embeds=[embed], view=view)
+    # Pocket is text-only: keep the banner strip and hero off the message.
+    await interaction.response.edit_message(embeds=[embed], view=view, attachments=[])
 
 
 async def setup(bot: commands.Bot):

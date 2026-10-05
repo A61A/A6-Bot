@@ -65,7 +65,10 @@ def _invoice_view(payment_id: int) -> discord.ui.View:
 @router.button("pocket:buycredits")
 async def pocket_buycredits(interaction: discord.Interaction, _rest: list[str]):
     embed, view = views.buy_credits_flow(interaction.user)
-    await interaction.response.edit_message(embeds=[embed], view=view)
+    # Back onto branded artwork after the text-only Pocket screen.
+    await interaction.response.edit_message(
+        embeds=[embed], view=view, attachments=embeds.embed_files()
+    )
 
 
 @router.button("pay:amount")
