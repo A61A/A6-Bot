@@ -6,14 +6,14 @@ import discord
 from discord.ext import commands
 
 from cogs import router, views
-from config import embeds, notes
+from config import codes, embeds, notes
 from lib import db
 
 
 class RedeemModal(discord.ui.Modal, title="Redeem a code"):
     code_input = discord.ui.TextInput(
         label="Code",
-        placeholder="e.g. ND-XXXX-XXXX",
+        placeholder=f"e.g. {codes.prefix()}-XXXX-XXXX",
         min_length=1,
         max_length=64,
         required=True,

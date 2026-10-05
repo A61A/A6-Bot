@@ -198,10 +198,15 @@ def spend_credits(user_id: str, amount: int, ref: str = None) -> int:
 # --------------------------------------------------------------------------
 
 def create_redeem_code(code: str, credits: int, uses_left: int = 1, created_by: str = "admin") -> None:
-    _conn.execute(
-        "INSERT OR REPLACE INTO redeem_codes (code, credits, uses_left, created_by, created_at) VALUES (?, ?, ?, ?, ?)",
-        (code.upper(), credits, uses_left, created_by, now_ms()),
-    )
+    """Add a code. Refuses to overwrite one that already exists — a silent
+    REPLACE here would quietly hand an already-issued code a different value."""
+    try:
+        _conn.execute(
+            "INSERT INTO redeem_codes (code, credits, uses_left, created_by, created_at) VALUES (?, ?, ?, ?, ?)",
+            (code.upper(), credits, uses_left, created_by, now_ms()),
+        )
+    except sqlite3.IntegrityError:
+        raise ValueError("That code already exists.")
     _conn.commit()
 
 

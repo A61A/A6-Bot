@@ -8,6 +8,7 @@
   Remove    pick, then confirm
   Payments  payment methods shown under the Bank button (link or instructions)
   Notes     the payment notes customers were told to include
+  Credits   hand out or pull back credits, or mint redeem codes
 
 All operations read straight from the DB, so changes apply instantly —
 no restart, no re-post. Stock is per version: a number, or unlimited.
@@ -22,7 +23,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from cogs import router
-from config import embeds
+from config import codes, embeds
 from config.roles import is_owner
 from lib import db
 
@@ -202,6 +203,11 @@ def _dashboard_view() -> discord.ui.View:
                 {"custom_id": "admin:rmpm", "label": "Remove Payment", "style": discord.ButtonStyle.danger, "row": 2},
                 {"custom_id": "admin:notes", "label": "Recent Notes", "style": discord.ButtonStyle.primary, "row": 2},
             ],
+            [
+                {"custom_id": "admin:give", "label": "Give Credits", "style": discord.ButtonStyle.success, "row": 3},
+                {"custom_id": "admin:take", "label": "Remove Credits", "style": discord.ButtonStyle.danger, "row": 3},
+                {"custom_id": "admin:codes", "label": "Redeem Codes", "style": discord.ButtonStyle.primary, "row": 3},
+            ],
         ]
     )
 
@@ -287,6 +293,65 @@ def _payment_select_rows(custom_id: str, placeholder: str) -> list[list[dict]] |
 
 
 # ------------------------------------------------------------------ modals
+
+def _parse_user_id(raw) -> str | None:
+    """A mention or a bare snowflake -> the numeric id, else None."""
+    text = (raw or "").strip()
+    match = re.fullmatch(r"<@!?(\d+)>", text)
+    if match:
+        return match.group(1)
+    if text.isdigit() and 15 <= len(text) <= 25:
+        return text
+    return None
+
+
+def _parse_credits(raw, *, maximum: int = 1_000_000) -> int | None:
+    """Whole number within 1..maximum, else None."""
+    text = (raw or "").strip().replace(",", "")
+    if not text.isdigit():
+        return None
+    value = int(text)
+    if value < 1 or value > maximum:
+        return None
+    return value
+
+
+def _credits_modal(action: str) -> discord.ui.Modal:
+    verb = "Give" if action == "give" else "Remove"
+    m = discord.ui.Modal(title=f"{verb} credits", custom_id=f"admin:credits:{action}")
+    m.add_item(
+        discord.ui.TextInput(
+            label="Member",
+            custom_id="user",
+            placeholder="Mention them, or right-click → Copy Member ID",
+            max_length=64,
+        )
+    )
+    m.add_item(
+        discord.ui.TextInput(label="Credits", custom_id="amount", placeholder="100", max_length=12)
+    )
+    return m
+
+
+def _codes_modal() -> discord.ui.Modal:
+    m = discord.ui.Modal(title="Generate redeem codes", custom_id="admin:codes:modal")
+    m.add_item(
+        discord.ui.TextInput(label="Credits per code", custom_id="credits", placeholder="100", max_length=12)
+    )
+    m.add_item(
+        discord.ui.TextInput(label="How many codes", custom_id="count", placeholder="5", max_length=4)
+    )
+    m.add_item(
+        discord.ui.TextInput(
+            label="Uses per code (empty = 1)",
+            custom_id="uses",
+            placeholder="1",
+            required=False,
+            max_length=6,
+        )
+    )
+    return m
+
 
 def _add_product_modal() -> discord.ui.Modal:
     m = discord.ui.Modal(title="Add Product", custom_id="admin:addp:modal")
@@ -641,6 +706,27 @@ async def admin_notes(interaction: discord.Interaction, _rest: list[str]):
     await interaction.response.edit_message(embeds=[embed], view=_dashboard_view())
 
 
+@router.button("admin:give")
+async def admin_give(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    await interaction.response.send_modal(_credits_modal("give"))
+
+
+@router.button("admin:take")
+async def admin_take(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    await interaction.response.send_modal(_credits_modal("take"))
+
+
+@router.button("admin:codes")
+async def admin_codes(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    await interaction.response.send_modal(_codes_modal())
+
+
 # ---------------------------------------------------------------- selects
 
 @router.select("admin:edp:pick")
@@ -986,6 +1072,105 @@ async def admin_edpm_modal(interaction: discord.Interaction, rest: list[str]):
         f"Emoji: {pm['emoji'] or '—'}\n"
         f"Link: {pm['url'] or '—'}\n"
         f"Instructions: {pm['details'] or '—'}",
+    )
+    await _show(interaction, embed, _result_view())
+
+
+async def _find_member(guild, user_id: str):
+    """Resolve an id against the server, or None if nobody in it owns it."""
+    try:
+        return await guild.fetch_member(int(user_id))
+    except Exception:  # not in this server — also covers an API hiccup
+        return None
+
+
+@router.modal("admin:credits")
+async def admin_credits_modal(interaction: discord.Interaction, rest: list[str]):
+    """rest carries the action: ['give'] or ['take']."""
+    if not await _guard(interaction):
+        return
+    action = rest[0] if rest else ""
+    if action not in ("give", "take"):
+        await _fail(interaction, "That form expired — reopen /admin.")
+        return
+    v = _modal_values(interaction)
+    user_id = _parse_user_id(v.get("user"))
+    if user_id is None:
+        await _fail(interaction, "Give me a member mention or their numeric ID.")
+        return
+    amount = _parse_credits(v.get("amount"))
+    if amount is None:
+        await _fail(interaction, "Credits must be a whole number between 1 and 1,000,000.")
+        return
+
+    label = f"<@{user_id}>"
+    guild = getattr(interaction, "guild", None)
+    if guild is not None:
+        member = await _find_member(guild, user_id)
+        if member is None:
+            await _fail(interaction, "I couldn't find that member in this server.")
+            return
+        label = str(member)
+
+    before = db.get_credits(user_id)
+    if action == "take":
+        if amount > before:
+            await _fail(interaction, f"{label} only has **{before} credits**.")
+            return
+        after = db.add_credits(user_id, -amount, "admin", str(interaction.user.id))
+        title, sign = "Credits removed", "−"
+    else:
+        after = db.add_credits(user_id, amount, "admin", str(interaction.user.id))
+        title, sign = "Credits given", "+"
+
+    embed = _prompt_embed(
+        title,
+        f"{label}\n\n**{before}** → **{after}**  ({sign}{amount})",
+    )
+    await _show(interaction, embed, _result_view())
+
+
+@router.modal("admin:codes:modal")
+async def admin_codes_modal(interaction: discord.Interaction, _rest: list[str]):
+    if not await _guard(interaction):
+        return
+    v = _modal_values(interaction)
+    credits = _parse_credits(v.get("credits"))
+    if credits is None:
+        await _fail(interaction, "Credits per code must be a whole number between 1 and 1,000,000.")
+        return
+    count = _parse_credits(v.get("count"), maximum=25)
+    if count is None:
+        await _fail(interaction, "How many codes? Anywhere from 1 to 25.")
+        return
+    uses = 1
+    raw_uses = (v.get("uses") or "").strip()
+    if raw_uses:
+        uses = _parse_credits(raw_uses, maximum=1000)
+        if uses is None:
+            await _fail(interaction, "Uses per code must be a whole number between 1 and 1000.")
+            return
+
+    created: list[str] = []
+    attempts = 0
+    while len(created) < count and attempts < count * 20:
+        attempts += 1
+        code = codes.generate_code()
+        try:
+            db.create_redeem_code(code, credits, uses, created_by=str(interaction.user.id))
+        except ValueError:
+            continue
+        created.append(code)
+    if len(created) < count:
+        await _fail(interaction, "Couldn't mint enough unique codes — try again.")
+        return
+
+    per = "use" if uses == 1 else "uses"
+    embed = _prompt_embed(
+        "Redeem codes generated",
+        f"**{credits} credits** each · **{uses}** {per} per code\n\n"
+        + "\n".join(f"`{code}`" for code in created)
+        + "\n\nHand these out — customers paste them under **Pocket → Redeem**.",
     )
     await _show(interaction, embed, _result_view())
 
