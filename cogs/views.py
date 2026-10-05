@@ -46,22 +46,15 @@ def hub_home_button(user: discord.User) -> dict:
 def payment_method_options() -> list[discord.SelectOption]:
     """Owner-managed methods from the DB (see /admin → Add Payment).
 
-    Instructions belong on the payment embed. Only PayPal also gets to preview
-    them here — every other method (added now or later) reveals its
-    instructions only after it has been picked.
+    Instructions belong on the payment embed alone — the dropdown just lists
+    the methods, with no preview of what's behind them.
     """
     options: list[discord.SelectOption] = []
     for pm in db.list_payment_methods()[:25]:
-        if "paypal" in pm["label"].lower():
-            first_line = (pm["details"] or "").strip().splitlines()
-            description = (first_line[0] if first_line else pm["url"])[:100] or None
-        else:
-            description = None
         options.append(
             discord.SelectOption(
                 label=pm["label"][:100],
                 value=str(pm["id"]),
-                description=description,
                 emoji=(pm["emoji"] or None),
             )
         )
