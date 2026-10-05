@@ -174,6 +174,12 @@ async def kiosk_buy(interaction: discord.Interaction, rest: list[str]):
     await portal.purchase_version(interaction, rest[0], back)
 
 
+@router.select("kiosk:buy:select")
+async def kiosk_buy_select(interaction: discord.Interaction, values: list[str]):
+    back = menu_select_view() or menu_view()
+    await portal.purchase_version(interaction, values[0], back)
+
+
 @router.button("kiosk:menu:back")
 async def kiosk_menu_back(interaction: discord.Interaction, _rest: list[str]):
     await interaction.response.edit_message(embeds=[howto_embed()], view=menu_view())

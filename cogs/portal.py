@@ -98,6 +98,13 @@ async def portal_buy(interaction: discord.Interaction, rest: list[str]):
     await purchase_version(interaction, rest[0], views.hub_home_button_view(interaction.user))
 
 
+@router.select("portal:buy:select")
+async def portal_buy_select(interaction: discord.Interaction, values: list[str]):
+    # Same purchase path as the old per-version buttons; the version arrives
+    # as the dropdown's chosen value.
+    await purchase_version(interaction, values[0], views.hub_home_button_view(interaction.user))
+
+
 async def _finish_purchase(interaction, product, version, back_view):
     user_id = interaction.user.id
     db.record_purchase(user_id, product["key"], version["value"], version["price"])

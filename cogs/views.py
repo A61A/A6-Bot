@@ -68,6 +68,19 @@ def hub_home_button_view(user: discord.User) -> discord.ui.View:
     return router.make_view([[hub_home_button(user)]])
 
 
+# Per-product accent used on the catalog pages. Products not listed here
+# keep the default violet. (TikTok's black is 0x000000 = Discord's default,
+# so that embed simply renders with no accent bar.)
+PRODUCT_COLORS: dict[str, int] = {
+    "netflix": 0xE50914,
+    "suppliers": 0xFF69B4,
+    "tiktok_users": 0x000000,
+    "discord_nitro": 0x5865F2,
+    "spotify": 0x1DB954,
+    "twitter_accounts": 0xFFFFFF,
+}
+
+
 def product_select_options() -> list[discord.SelectOption]:
     """Dropdown options for the visible catalog. Shared by portal_menu and the kiosk Menu follow-up."""
     options = []
@@ -121,25 +134,42 @@ def product_page(
         title=f"{product.get('emoji', '')} {product['label']}",
         description=product.get("desc") or "",
         fields=lines + [("Balance", f"{db.get_credits(user.id)} credits", False)],
+        color=PRODUCT_COLORS.get(product["key"], embeds.VIOLET),
         hero=hero,
     )
-    rows = []
-    b_row = []
+    owned = product.get("once", False) and db.has_purchased(user.id, product["key"])
+    options = []
     for v in product["versions"]:
-        owned = product.get("once", False) and db.has_purchased(user.id, product["key"])
-        sold_out = v.get("stock") is not None and v["stock"] <= 0
-        b_row.append(
-            {
-                "custom_id": f"{buy_prefix}:{v['value']}",
-                "label": f"Buy {v['label']} — {v['price']} credits",
-                "style": discord.ButtonStyle.success,
-                "disabled": owned or sold_out,
-            }
+        stock = v.get("stock")
+        if owned:
+            note = "Already owned"
+        elif stock is not None and stock <= 0:
+            note = "Sold out"
+        elif stock is not None:
+            note = f"{stock} left"
+        else:
+            note = None
+        options.append(
+            discord.SelectOption(
+                label=f"Buy {v['label']} — {v['price']} credits",
+                value=v["value"],
+                description=note,
+            )
         )
-    rows.append(b_row[:5])
+    rows = []
+    if options:
+        rows.append(
+            [
+                {
+                    "type": "select",
+                    "custom_id": f"{buy_prefix}:select",
+                    "placeholder": "Pick a version to buy…",
+                    "options": options,
+                }
+            ]
+        )
     rows.append([back if back is not None else hub_home_button(user)])
-    view = router.make_view(rows)
-    return embed, view
+    return embed, router.make_view(rows)
 
 
 # ------------------------------------------------------ buy-credits (crypto)
