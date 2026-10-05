@@ -50,32 +50,73 @@ async def pocket_redeem(interaction: discord.Interaction, _rest: list[str]):
 
 @router.select("pocket:pay")
 async def pocket_pay(interaction: discord.Interaction, values: list[str]):
-    """A payment method picked from the Bank dropdown."""
+    """A payment method picked from the Bank dropdown -> choose the top-up amount."""
     pm = db.get_payment_method(values[0] if values else None)
     if pm is None:
         await interaction.response.send_message(
             "That payment method is no longer available — pick another one.", ephemeral=True
         )
         return
+    embed = embeds.branded_embed(
+        title=pm["label"],
+        description=(
+            f"How much are you topping up with **{pm['label']}**?\n\n"
+            "**$1 = 1 credit** — pick an amount and we'll tell you exactly what to send."
+        ),
+        hero=False,
+        shop=False,
+    )
+    amounts = [5, 10, 25, 50]
     rows: list[list[dict]] = []
-    if pm["url"]:
-        # URL set -> a direct link button; no URL -> the written instructions.
-        rows.append([{"label": f"Open {pm['label']}"[:80], "url": pm["url"], "emoji": pm["emoji"] or None}])
+    for i in range(0, len(amounts), 2):
+        rows.append(
+            [
+                {
+                    "custom_id": f"pocket:amount:{pm['id']}:{a}",
+                    "label": f"${a}",
+                    "style": discord.ButtonStyle.secondary,
+                }
+                for a in amounts[i : i + 2]
+            ]
+        )
     rows.append([{"custom_id": "pocket:back", "label": "Back to Pocket", "style": discord.ButtonStyle.secondary}])
-
-    # Manual payment -> a fresh note to paste into the payment, so staff can
-    # match it. (Crypto runs through its own invoice flow instead.)
-    note = notes.generate_note()
-    db.log_payment_note(interaction.user.id, pm["id"], pm["label"], note)
-
-    details = (pm["details"] or "").strip()
-    if pm["url"]:
-        body = details or f"Tap **Open {pm['label']}** to pay."
-    else:
-        body = details or "No instructions yet — contact staff."
-    description = f"**{notes.note_line(note)}**\n\n{body}"
-    embed = embeds.branded_embed(title=pm["label"], description=description, hero=False, shop=False)
     await interaction.response.edit_message(embeds=[embed], view=router.make_view(rows))
+
+
+@router.button("pocket:amount")
+async def pocket_amount(interaction: discord.Interaction, rest: list[str]):
+    """Amount picked -> the payment screen: amount due, the note, where to send it."""
+    pm = db.get_payment_method(rest[0] if rest else None)
+    if pm is None:
+        await interaction.response.send_message(
+            "That payment method is no longer available — pick another one.", ephemeral=True
+        )
+        return
+    try:
+        amount = int(rest[1])
+    except (IndexError, TypeError, ValueError):
+        amount = 0
+    if amount <= 0:
+        await interaction.response.send_message("Pick an amount to continue.", ephemeral=True)
+        return
+
+    # Fresh note per click, logged with what it's for so staff can match the payment.
+    note = notes.generate_note()
+    db.log_payment_note(
+        interaction.user.id,
+        pm["id"],
+        pm["label"],
+        note,
+        amount=f"${amount}",
+        context="Balance top-up",
+    )
+    embed, view = views.payment_screen(
+        pm,
+        note,
+        amount=f"${amount}",
+        back={"custom_id": "pocket:back", "label": "Back to Pocket", "style": discord.ButtonStyle.secondary},
+    )
+    await interaction.response.edit_message(embeds=[embed], view=view)
 
 
 @router.button("pocket:back")

@@ -9,7 +9,7 @@ from __future__ import annotations
 import discord
 
 from cogs import router
-from config import embeds
+from config import embeds, notes
 from config.roles import EMOJI_RESELLER, EMOJI_SHOPPER
 from lib import db
 
@@ -56,6 +56,53 @@ def payment_method_options() -> list[discord.SelectOption]:
             )
         )
     return options
+
+
+def payment_method_select(custom_id: str, *, placeholder: str = "Pick a payment method…") -> dict:
+    """The method picker row, used by both the Pocket top-up and direct product buys."""
+    return {
+        "type": "select",
+        "custom_id": custom_id,
+        "placeholder": placeholder,
+        "options": payment_method_options(),
+    }
+
+
+def payment_screen(
+    pm: dict,
+    note: str,
+    *,
+    amount: str = "",
+    back: dict,
+) -> tuple[discord.Embed, discord.ui.View]:
+    """What the customer pays from: how much, the note to paste, where to send it.
+
+    `amount` is the money they owe ("$25"); empty skips the line (nothing to charge).
+    """
+    lines: list[str] = []
+    if amount:
+        lines.append(f"Amount due = {amount}")
+        lines.append("")
+    lines.append(notes.note_line(note))
+    details = (pm.get("details") or "").strip()
+    if details:
+        if "\n" in details or len(details) > 100:
+            lines.append("")
+            lines.append(details)
+        else:
+            lines.append(f"Send here -> `{details}`")
+    elif pm.get("url"):
+        lines.append(f"Tap **Open {pm['label']}** to pay.")
+    else:
+        lines.append("No instructions yet — contact staff.")
+
+    rows: list[list[dict]] = []
+    if pm.get("url"):
+        # URL set -> a direct link button; no URL -> the written instructions.
+        rows.append([{"label": f"Open {pm['label']}"[:80], "url": pm["url"], "emoji": pm.get("emoji") or None}])
+    rows.append([back])
+    embed = embeds.branded_embed(title=pm["label"], description="\n".join(lines), hero=False, shop=False)
+    return embed, router.make_view(rows)
 
 
 # -------------------------------------------------------------- pocket menu
@@ -166,20 +213,28 @@ def product_page(
     buy_prefix: str = "portal:buy",
 ) -> tuple[discord.Embed, discord.ui.View]:
     lines = []
+    owned = product.get("once", False) and db.has_purchased(user.id, product["key"])
+    payable = False
     for v in product["versions"]:
         stock = v.get("stock")
         price = f"{v['price']} credits"
         if stock is not None:
             price += " — Sold out" if stock <= 0 else f" — {stock} left"
         lines.append((f"**{v['label']}**", price, True))
+        if not owned and (stock is None or stock > 0):
+            payable = True
+    description = (product.get("desc") or "").strip()
+    if payable:
+        # Reached from the BUY button underneath the version dropdown.
+        hook = "**No credits?** Click the BUY button below."
+        description = f"{description}\n\n{hook}" if description else hook
     embed = embeds.branded_embed(
         title=f"{product.get('emoji', '')} {product['label']}",
-        description=product.get("desc") or "",
+        description=description,
         fields=lines + [("Balance", f"{db.get_credits(user.id)} credits", False)],
         color=_product_color(product),
         hero=hero,
     )
-    owned = product.get("once", False) and db.has_purchased(user.id, product["key"])
     options = []
     for v in product["versions"]:
         stock = v.get("stock")
@@ -210,6 +265,17 @@ def product_page(
                 }
             ]
         )
+        # Pay-without-credits entry point, right underneath the version dropdown.
+        if payable:
+            rows.append(
+                [
+                    {
+                        "custom_id": f"{buy_prefix}:paydirect:{product['key']}",
+                        "label": "BUY",
+                        "style": discord.ButtonStyle.success,
+                    }
+                ]
+            )
     rows.append([back if back is not None else hub_home_button(user)])
     return embed, router.make_view(rows)
 

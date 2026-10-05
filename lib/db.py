@@ -127,6 +127,8 @@ CREATE TABLE IF NOT EXISTS payment_notes (
     method_id INTEGER NOT NULL,
     method_label TEXT NOT NULL,
     note TEXT NOT NULL,
+    amount TEXT NOT NULL DEFAULT '',
+    context TEXT NOT NULL DEFAULT '',
     created_at INTEGER NOT NULL
 );
 """
@@ -144,6 +146,8 @@ def _ensure_column(table: str, column: str, ddl: str) -> None:
 
 
 _ensure_column("products", "color", "TEXT NOT NULL DEFAULT ''")
+_ensure_column("payment_notes", "amount", "TEXT NOT NULL DEFAULT ''")
+_ensure_column("payment_notes", "context", "TEXT NOT NULL DEFAULT ''")
 
 
 def get_conn() -> sqlite3.Connection:
@@ -674,12 +678,29 @@ def delete_payment_method(pm_id) -> None:
 # One row per note handed to a customer, so staff can match an incoming
 # manual payment back to them. method_label is copied at generation time on
 # purpose: deleting a payment method must not erase the payment history.
+# `amount` ($25) and `context` (which product/version or "Balance top-up")
+# tell staff what the money is actually for.
 
-def log_payment_note(user_id, method_id, method_label: str, note: str) -> int:
+def log_payment_note(
+    user_id,
+    method_id,
+    method_label: str,
+    note: str,
+    amount: str = "",
+    context: str = "",
+) -> int:
     cur = _conn.execute(
-        "INSERT INTO payment_notes (user_id, method_id, method_label, note, created_at)"
-        " VALUES (?, ?, ?, ?, ?)",
-        (str(user_id), int(method_id), str(method_label), str(note), now_ms()),
+        "INSERT INTO payment_notes (user_id, method_id, method_label, note, amount, context, created_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (
+            str(user_id),
+            int(method_id),
+            str(method_label),
+            str(note),
+            str(amount),
+            str(context),
+            now_ms(),
+        ),
     )
     _conn.commit()
     return int(cur.lastrowid)
@@ -696,6 +717,8 @@ def recent_payment_notes(limit: int = 25) -> list[dict]:
             "method_id": r["method_id"],
             "method_label": r["method_label"],
             "note": r["note"],
+            "amount": r["amount"],
+            "context": r["context"],
             "created_at": r["created_at"],
         }
         for r in rows

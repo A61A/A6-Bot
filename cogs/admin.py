@@ -621,11 +621,17 @@ async def admin_notes(interaction: discord.Interaction, _rest: list[str]):
     if not rows:
         embed = _prompt_embed("Payment Notes", "No notes have been generated yet.")
     else:
-        lines = [
-            f"<@{n['user_id']}> • **{n['note']}** • {n['method_label']}"
-            f" • <t:{int(n['created_at']) // 1000}:R>"
-            for n in rows[:25]
-        ]
+        def _line(n: dict) -> str:
+            bits = [f"<@{n['user_id']}>", f"**{n['note']}**"]
+            if n.get("amount"):
+                bits.append(n["amount"])
+            if n.get("context"):
+                bits.append(n["context"])
+            bits.append(n["method_label"])
+            bits.append(f"<t:{int(n['created_at']) // 1000}:R>")
+            return " • ".join(bits)
+
+        lines = [_line(n) for n in rows[:25]]
         embed = embeds.branded_embed(
             title="Payment Notes",
             description="\n\n".join(lines),
