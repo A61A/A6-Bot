@@ -113,13 +113,12 @@ def hero_file() -> discord.File:
 
 
 def embed_files() -> list[discord.File]:
-    """Every file a branded embed needs.
+    """The header/footer artwork — kiosk panel ONLY.
 
-    Use this as `files=` on every fresh send of a branded embed. The embed
-    references both attachments, so skipping one leaves a broken image box.
-    Message edits inherit the original attachments and don't need this, with
-    one exception: anything that passes `attachments=[]` wipes them and must
-    pass `attachments=embed_files()` instead.
+    `banner.gif` + `hero.gif` are the strip above an embed and the big gif
+    inside it. Nothing else in the bot attaches them: every other screen is
+    text-only. The kiosk panel is the one exception (`send_panel`), where its
+    v2 container references both files.
     """
     return [banner_file(), hero_file()]
 
@@ -154,16 +153,16 @@ def branded_embed(
     shop: bool = True,
     hero: bool = True,
 ) -> discord.Embed:
-    """Build a themed embed: banner strip on top, brand heading, gif, shop block.
+    """Build a themed embed: brand heading, body, optional shop block.
 
-    Set `subtitle` for a quiet italic line under the heading, `shop=False`
+    Set `subtitle` for a quiet italic line under the heading, and `shop=False`
     to drop the bottom link block (e.g. on the welcome embed, which already
-    points people at /hub), and `hero=False` to drop the gif.
+    points people at /hub).
 
-    When `hero` is on, the send MUST include `files=embed_files()` (fresh
-    sends) or keep the original attachments (edits) - otherwise the image
-    box breaks.
+    No images: `hero` is accepted for existing call sites but does nothing —
+    header/footer artwork lives on the kiosk panel only (see `embed_files`).
     """
+
     embed = discord.Embed(color=color)
     if title:
         embed.title = _heading(title)
@@ -181,8 +180,5 @@ def branded_embed(
     block = shop_block() if shop else None
     if block:
         embed.add_field(name=block[0], value=block[1], inline=False)
-
-    if hero:
-        embed.set_image(url=f"attachment://{HERO_FILENAME}")
 
     return embed

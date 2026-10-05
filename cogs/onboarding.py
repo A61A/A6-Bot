@@ -85,7 +85,7 @@ async def role_shopper(interaction: discord.Interaction, _rest: list[str]):
         description=f"You've got the **{role.name}** role. Run **/hub** to get going.",
         color=embeds.SUCCESS,
     )
-    await interaction.response.send_message(embeds=[embed], files=embeds.embed_files(), ephemeral=True)
+    await interaction.response.send_message(embeds=[embed], ephemeral=True)
 
 
 @router.button("role:reseller")

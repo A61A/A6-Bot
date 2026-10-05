@@ -65,10 +65,7 @@ def _invoice_view(payment_id: int) -> discord.ui.View:
 @router.button("pocket:buycredits")
 async def pocket_buycredits(interaction: discord.Interaction, _rest: list[str]):
     embed, view = views.buy_credits_flow(interaction.user)
-    # Back onto branded artwork after the text-only Pocket screen.
-    await interaction.response.edit_message(
-        embeds=[embed], view=view, attachments=embeds.embed_files()
-    )
+    await interaction.response.edit_message(embeds=[embed], view=view)
 
 
 @router.button("pay:amount")
@@ -98,7 +95,7 @@ async def pay_coin(interaction: discord.Interaction, values: list[str]):
     payment = db.get_payment(created["payment_id"])
     embed = _invoice_embed(payment)
     await interaction.edit_original_response(
-        embeds=[embed], view=_invoice_view(created["payment_id"]), attachments=embeds.embed_files()
+        embeds=[embed], view=_invoice_view(created["payment_id"])
     )
 
 
@@ -178,7 +175,7 @@ class PaymentsCog(commands.Cog):
         user = self.bot.get_user(int(user_id))
         if user:
             try:
-                await user.send(embeds=[embed], files=embeds.embed_files())
+                await user.send(embeds=[embed])
             except discord.Forbidden:
                 pass
 

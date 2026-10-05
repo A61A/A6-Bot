@@ -61,7 +61,7 @@ async def purchase_version(interaction: discord.Interaction, version_value: str,
             title="Already yours",
             description="You already own this product — no need to buy it again.",
         )
-        await interaction.response.send_message(embeds=[embed], files=embeds.embed_files(), ephemeral=True)
+        await interaction.response.send_message(embeds=[embed], ephemeral=True)
         return
 
     if version.get("stock") is not None and version["stock"] <= 0:
@@ -69,7 +69,7 @@ async def purchase_version(interaction: discord.Interaction, version_value: str,
             title="Sold out",
             description="That one just ran out — check back soon or grab another version.",
         )
-        await interaction.response.send_message(embeds=[embed], files=embeds.embed_files(), ephemeral=True)
+        await interaction.response.send_message(embeds=[embed], ephemeral=True)
         return
 
     try:
@@ -79,7 +79,7 @@ async def purchase_version(interaction: discord.Interaction, version_value: str,
             title="Not enough credits",
             description="Your balance is too low — top up from your Pocket.",
         )
-        await interaction.response.send_message(embeds=[embed], files=embeds.embed_files(), ephemeral=True)
+        await interaction.response.send_message(embeds=[embed], ephemeral=True)
         return
     if not db.take_stock(version["value"]):
         # Someone grabbed the last one mid-click - refund, don't charge.
@@ -88,7 +88,7 @@ async def purchase_version(interaction: discord.Interaction, version_value: str,
             title="Just sold out",
             description="Someone grabbed the last one first — your credits were refunded.",
         )
-        await interaction.response.send_message(embeds=[embed], files=embeds.embed_files(), ephemeral=True)
+        await interaction.response.send_message(embeds=[embed], ephemeral=True)
         return
     return await _finish_purchase(interaction, product, version, back_view)
 

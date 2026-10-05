@@ -6,7 +6,6 @@ import discord
 from discord.ext import commands
 
 from cogs import router, views
-from config import embeds
 from config.roles import is_owner
 
 
@@ -17,9 +16,7 @@ class HubCog(commands.Cog):
     @discord.app_commands.command(name="hub", description="Open the hub menu")
     async def hub(self, interaction: discord.Interaction):
         embed, view = views.hub_menu(interaction.user)
-        await interaction.response.send_message(
-            embeds=[embed], view=view, files=embeds.embed_files(), ephemeral=True
-        )
+        await interaction.response.send_message(embeds=[embed], view=view, ephemeral=True)
 
     @discord.app_commands.command(name="sync", description="Staff: re-sync slash commands")
     @discord.app_commands.describe(guild_id="Optional guild ID to sync instantly (defaults to global)")
@@ -46,20 +43,19 @@ class HubCog(commands.Cog):
 @router.button("hub:home")
 async def hub_home(interaction: discord.Interaction, _rest: list[str]):
     embed, view = views.hub_menu(interaction.user)
-    # Re-attach banner + hero: the Pocket screen strips them off its message.
-    await interaction.response.edit_message(embeds=[embed], view=view, attachments=embeds.embed_files())
+    # Strip any artwork left over from older builds - only the kiosk panel has it.
+    await interaction.response.edit_message(embeds=[embed], view=view, attachments=[])
 
 
 @router.button("hub:portal")
 async def hub_portal(interaction: discord.Interaction, _rest: list[str]):
     embed, view = views.portal_menu(interaction.user)
-    await interaction.response.edit_message(embeds=[embed], view=view, attachments=embeds.embed_files())
+    await interaction.response.edit_message(embeds=[embed], view=view, attachments=[])
 
 
 @router.button("hub:pocket")
 async def hub_pocket(interaction: discord.Interaction, _rest: list[str]):
     embed, view = views.pocket_menu(interaction.user)
-    # Pocket is text-only: wipe the banner strip and hero so they don't show.
     await interaction.response.edit_message(embeds=[embed], view=view, attachments=[])
 
 
