@@ -38,7 +38,7 @@ async def on_ready():
         print(f"[nodeline] synced {len(synced)} slash commands")
     except discord.DiscordException as err:
         print(f"[nodeline] command sync failed: {err}")
-    await bot.change_presence(status=discord.Status.dnd, activity=discord.Activity(type=discord.ActivityType.watching, name="/hub"))
+    # Presence is owned by cogs.statuscycle (rotating promo lines).
 
 # Global message handler to see all messages
 @bot.event
@@ -52,7 +52,7 @@ async def on_message(message: discord.Message):
 
 
 async def load_cogs():
-    for cog in ("hub", "pocket", "portal", "tickets", "payments", "onboarding", "orders", "kiosk", "admin"):
+    for cog in ("hub", "pocket", "portal", "tickets", "payments", "onboarding", "orders", "kiosk", "admin", "statuscycle"):
         try:
             print(f"[nodeline] attempting to load cogs.{cog}")
             await bot.load_extension(f"cogs.{cog}")
